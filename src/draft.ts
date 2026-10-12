@@ -44,7 +44,7 @@ export async function runDraft(pool: Card[], bots: Record<Side, Bot>, rng: Rng, 
     };
     const t0 = Date.now();
     let id: string | undefined;
-    try { id = await withTimeout(bots[side].draftPick(view), pickMs); } catch { id = undefined; }
+    try { id = await withTimeout((async () => bots[side].draftPick(view))(), pickMs); } catch { id = undefined; }
     let card = legal.find(c => c.id === id);
     const timedOut = !card;
     if (!card) card = rng.pick(legal);

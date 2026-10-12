@@ -54,15 +54,15 @@ export async function runBattle(teams: { p1: Card[]; p2: Card[] }, bots: { p1: B
       if (id !== decisionId || done) return;
       let choice: string | undefined;
       if (req.teamPreview) {
-        const c = await withTimeout(bot.teamPreview({ me: side === 'p1' ? 'A' : 'B', myTeam: me, oppTeam: opp }), previewMs);
+        const c = await withTimeout((async () => bot.teamPreview({ me: side === 'p1' ? 'A' : 'B', myTeam: me, oppTeam: opp }))(), previewMs);
         const pc = validPreview(c) ? c : (result.timeouts[side]++, randomPreview(rng));
         result.brought[side] = pc.order.map(i => me[i].id);
         choice = `team ${pc.order.map(i => i + 1).join('')}`;
       } else {
         tracker.syncRequest(req);
-        choice = await withTimeout(bot.chooseAction({
+        choice = await withTimeout((async () => bot.chooseAction({
           request: req, state: tracker.state, myTeam: me, oppTeam: opp, deadlineMs: decisionMs,
-        }), decisionMs);
+        }))(), decisionMs);
         if (!choice) { result.timeouts[side]++; choice = rng.pick(jointChoices(slotOptions(req))).choice; }
       }
       if (id === decisionId && !done) ps[side].write(choice);

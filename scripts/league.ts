@@ -86,7 +86,7 @@ async function saveLossLogs() {
   for (const b of bots) {
     const losses = results.filter(r => (r.sides.A === b || r.sides.B === b) && r.winner !== b && r.winner !== 'tie')
       .sort((x, y) => x.battle.turns - y.battle.turns).slice(0, keepLosses);
-    const dir = path.join(runDir, 'losses', b.replace('/', '__'));
+    const dir = path.join(runDir, 'losses', b.replace(/[\\/|]/g, '__'));
     fs.mkdirSync(dir, { recursive: true });
     for (const l of losses) {
       const r = await playMatch(l.seed, makeBot(l.sides.A), makeBot(l.sides.B), { keepLog: true });
