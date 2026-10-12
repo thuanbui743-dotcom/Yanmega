@@ -28,7 +28,7 @@ export const greedyBot = (): Bot => {
         if (o.kind === 'switch') return { v: -5 };
         const me = myActive[slot];
         if (!me?.card || !o.move) return { v: 1 };
-        if (o.move === 'Fake Out') return { v: me.turnsOnField === 0 ? 45 : -50 };
+        if (o.move === 'Fake Out') return { v: me.turnsOnField <= 1 ? 45 : -50 };
         const hit = (t: MonState | undefined) => {
           if (!t?.card) return { d: 0, kill: false };
           const d = moveDamage(me.card!, t.card, o.move!, {

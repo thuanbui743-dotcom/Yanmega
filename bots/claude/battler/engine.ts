@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -47,6 +47,7 @@ const REDIRECT = new Set(['Follow Me', 'Rage Powder']);
 const HEALS = new Set(['Recover', 'Roost', 'Slack Off', 'Soft-Boiled', 'Moonlight', 'Synthesis', 'Morning Sun', 'Shore Up', 'Milk Drink', 'Strength Sap', 'Heal Order', 'Lunar Blessing', 'Jungle Healing']);
 const SLEEP = new Set(['Spore', 'Sleep Powder', 'Hypnosis', 'Sing', 'Lovely Kiss', 'Dark Void', 'Grass Whistle']);
 const INTIM_IMMUNE = new Set(['Clear Body', 'Hyper Cutter', 'White Smoke', 'Full Metal Body', 'Inner Focus', 'Oblivious', 'Own Tempo', 'Scrappy', 'Guard Dog']);
+const PRIO_BLOCK = new Set(['Armor Tail', 'Queenly Majesty', 'Dazzling']);
 const STAT_DROP_IMMUNE = new Set(['Clear Body', 'White Smoke', 'Full Metal Body', 'Mirror Armor']);
 
 // ---------- damage cache ----------
@@ -77,7 +78,7 @@ export interface SM {
   side: 0 | 1; slot: number; card: Card; hp: number; boosts: Record<string, number>; status: string;
   fainted: boolean; protect: boolean; flinch: boolean; acted: boolean; firstTurn: boolean; itemUsed: boolean;
   types: string[]; ability: string; item: string; hh: boolean; protLast: boolean; lastMove?: string;
-  physical: boolean; maxHp: number; charging?: string; chargeTgt?: number; invuln?: boolean;
+  physical: boolean; maxHp: number; curMove?: string; charging?: string; chargeTgt?: number; invuln?: boolean;
 }
 export interface SF {
   tw: [number, number]; tr: number; weather: string; terrain: string;
@@ -110,6 +111,12 @@ function cloneSim(s: Sim): Sim {
 }
 
 // ---------- speed and priority ----------
+const speHiCache = new Map<string, boolean>();
+function speHighest(c: Card): boolean {
+  let v = speHiCache.get(c.id);
+  if (v === undefined) { const x = st(c); v = x.spe > Math.max(x.atk, x.def, x.spa, x.spd); speHiCache.set(c.id, v); }
+  return v;
+}
 const stageMult = (n: number) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
 export function effSpeed(m: SM, f: SF, twTurns?: number): number {
   let s = st(m.card).spe * stageMult(m.boosts.spe ?? 0);
@@ -119,6 +126,10 @@ export function effSpeed(m: SM, f: SF, twTurns?: number): number {
   if ((a === 'Swift Swim' && w === 'RainDance') || (a === 'Chlorophyll' && w === 'SunnyDay') || (a === 'Sand Rush' && w === 'Sandstorm')
     || (a === 'Slush Rush' && (w === 'Snowscape' || w === 'Snow')) || (a === 'Surge Surfer' && f.terrain === 'Electric Terrain')
     || (a === 'Unburden' && m.itemUsed && m.card.item !== '')) s *= 2;
+  if (P.PARADOX && (a === 'Protosynthesis' || a === 'Quark Drive') && speHighest(m.card)) {
+    const field = a === 'Protosynthesis' ? w === 'SunnyDay' : f.terrain === 'Electric Terrain';
+    if (field || m.card.item === 'Booster Energy') s *= 1.5;
+  }
   if (a === 'Quick Feet' && m.status) s *= 1.5;
   else if (m.status === 'par') s *= 0.5;
   if ((twTurns ?? f.tw[m.side]) > 0) s *= 2;
@@ -267,9 +278,9 @@ function hit(s: Sim, m: SM, t: SM, a: Act, d: any, nTargets: number): number {
   if (nTargets > 1 && f.wideGuard[t.side]) return 0;
   if (a.move === 'Sucker Punch' || a.move === 'Thunderclap') {
     // fails if target already moved or is not attacking (approximated by acted flag)
-    if (t.acted) return 0;
+    if (t.acted || (t.curMove && mv(t.curMove).category === 'Status')) return 0;
   }
-  if (priorityOf(m, a, f) > 0 && f.terrain === 'Psychic Terrain' && t.side !== m.side && grounded(t)) return 0;
+  if (priorityOf(m, a, f) > 0 && t.side !== m.side && ((f.terrain === 'Psychic Terrain' && grounded(t)) || PRIO_BLOCK.has(t.ability) || PRIO_BLOCK.has(s.act[t.side][1 - t.slot]?.ability ?? ''))) return 0;
   const r = dmg(m, t, a.move!, f);
   if (!r) return 0;
   const L = LUCK[m.side];
@@ -287,7 +298,7 @@ function hit(s: Sim, m: SM, t: SM, a: Act, d: any, nTargets: number): number {
   if (t.hp <= 0.01) { t.hp = 0; t.fainted = true; }
   // secondary effects
   const sec = d.secondary;
-  if (sec && sec.chance >= 100 && !t.fainted && t.ability !== 'Shield Dust' && t.item !== 'Covert Cloak') {
+  if (sec && sec.chance >= 100 && r.avgPct > 0 && !t.fainted && t.ability !== 'Shield Dust' && t.item !== 'Covert Cloak') {
     if (sec.volatileStatus === 'flinch' && !t.acted && t.ability !== 'Inner Focus') t.flinch = true;
     if (sec.boosts) applyBoosts(t, sec.boosts, true);
     if (sec.status && canStatus(t, sec.status, f)) t.status = sec.status;
@@ -377,6 +388,7 @@ export function simulate(s: Sim, acts: (Act | null)[][]) {
   }
   for (let side = 0; side < 2; side++) for (let slot = 0; slot < 2; slot++) {
     const a = acts[side][slot], m = s.act[side][slot];
+    if (m) m.curMove = a?.kind === 'move' ? a.move : undefined;
     if (!a || !m || m.fainted || a.kind !== 'move' || !a.move) continue;
     const name = a.move;
     if (PROTECTS.has(name) || name === 'Wide Guard') doStatusMove(s, m, a), (m.acted = true);
@@ -426,9 +438,27 @@ function statusVal(m: SM) {
   }
   return 0;
 }
+const WORTH = new Map<string, number>();
+const worthKey = { k: '' };
+function computeWorth(v: BattleView) {
+  const k = v.myTeam.map(c => c.id).join() + '/' + v.oppTeam.map(c => c.id).join();
+  if (worthKey.k === k) return;
+  worthKey.k = k; WORTH.clear();
+  const raw = (c: Card, foes: Card[]) => {
+    let s = 0;
+    for (const o of foes) { let b = 0; for (const mvn of c.moves) { const r = moveDamage(c, o, mvn); if (r) b = Math.max(b, r.avgPct); } s += Math.min(100, b); }
+    return s / foes.length;
+  };
+  for (const [team, foes] of [[v.myTeam, v.oppTeam], [v.oppTeam, v.myTeam]] as Card[][][]) {
+    const vals = team.map(c => raw(c, foes));
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length || 1;
+    team.forEach((c, i) => WORTH.set(c.id, 1 + P.WORTH * (vals[i] / mean - 1)));
+  }
+}
 function monVal(m: SM, onField: boolean) {
   if (m.fainted || m.hp <= 0) return 0;
-  return P.ALIVE + m.hp + (onField ? boostVal(m) : 0) + statusVal(m);
+  const w = P.WORTH ? (WORTH.get(m.card.id) ?? 1) : 1;
+  return w * (P.ALIVE + m.hp) + (onField ? boostVal(m) : 0) + statusVal(m);
 }
 export function evaluate(s: Sim): number {
   let v = 0;
@@ -752,6 +782,7 @@ function decide(v: BattleView): string {
   const opts = slotOptions(req);
   const joints = jointChoices(opts);
   if (joints.length === 1) return joints[0].choice;
+  if (P.WORTH) computeWorth(v);
   const { sim, myBench } = buildSim(v);
 
   if (req.forceSwitch) {

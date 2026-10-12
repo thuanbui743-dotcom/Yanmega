@@ -49,7 +49,7 @@ export interface MonState {
   slot: number;            // 0 or 1 when active, -1 otherwise
   lastMove?: string;
   protectedLastTurn: boolean;
-  turnsOnField: number;
+  turnsOnField: number;   // 1 during the first decision after switching in (Fake Out works only when <= 1)
   itemConsumed: boolean;
 }
 

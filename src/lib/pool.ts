@@ -21,6 +21,8 @@ export interface Mods {
   atkStatus?: string;
   defStatus?: string;
   defHpPct?: number;
+  atkHpPct?: number;      // scales Eruption / Water Spout etc.
+  singleTarget?: boolean; // only one foe left: no 0.75 spread modifier
   weather?: string;
   terrain?: string;
 }
@@ -48,10 +50,10 @@ export function moveDamage(att: Card, def: Card, moveName: string, mods: Mods = 
   const dm = Dex.moves.get(moveName);
   if (!dm.exists || dm.category === 'Status') return null;
   try {
-    const a = toCalcMon(att, mods.atkBoosts, mods.atkStatus);
+    const a = toCalcMon(att, mods.atkBoosts, mods.atkStatus, mods.atkHpPct);
     const d = toCalcMon(def, mods.defBoosts, mods.defStatus, mods.defHpPct);
     const field = new Field({
-      gameType: 'Doubles',
+      gameType: mods.singleTarget ? 'Singles' : 'Doubles',
       weather: (mods.weather ? WEATHER[mods.weather] : undefined) as any,
       terrain: (mods.terrain ? TERRAIN[mods.terrain] : undefined) as any,
     });

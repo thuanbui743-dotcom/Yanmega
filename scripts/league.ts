@@ -48,7 +48,7 @@ function report() {
     for (const b of bots) {
       if (a === b) { head[a][b] = '-'; continue; }
       const m = results.filter(r => (r.sides.A === a && r.sides.B === b) || (r.sides.A === b && r.sides.B === a));
-      head[a][b] = m.length ? (100 * m.filter(r => r.winner === a).length / m.length).toFixed(0) + '%' : '';
+      head[a][b] = m.length ? (100 * (m.filter(r => r.winner === a).length + m.filter(r => r.winner === 'tie').length / 2) / m.length).toFixed(0) + '%' : '';
     }
   }
   console.log('Row bot win % vs column bot:'); console.table(head);
