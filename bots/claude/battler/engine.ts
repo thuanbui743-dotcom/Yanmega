@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.8, MIX_TOP: 8, ADAPT: 1.2,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -59,13 +59,15 @@ function bkey(b: Record<string, number>) {
 }
 export function dmg(att: SM, def: SM, move: string, f: SF): DmgInfo | null {
   const defFull = def.hp >= 99.5;
+  const fgOn = !!(P.FG && f.fg && f.fg[def.side] && f.fg[def.side] !== def.card.id);
   const multi = def.ability === 'Multiscale' || def.ability === 'Shadow Shield';
-  const key = `${att.card.id}|${def.card.id}|${move}|${bkey(att.boosts)}|${bkey(def.boosts)}|${att.status}|${def.status}|${f.weather}|${f.terrain}|${multi && !defFull ? 0 : 1}`;
+  const key = `${att.card.id}|${def.card.id}|${move}|${bkey(att.boosts)}|${bkey(def.boosts)}|${att.status}|${def.status}|${f.weather}|${f.terrain}|${multi && !defFull ? 0 : 1}|${P.RUIN && f.ruin ? f.ruin.join() : ""}|${fgOn}`;
   let d = dmgCache.get(key);
   if (d === undefined) {
     d = moveDamage(att.card, def.card, move, {
       atkBoosts: att.boosts, defBoosts: def.boosts, atkStatus: att.status, defStatus: def.status,
       weather: f.weather, terrain: f.terrain, defHpPct: multi && !defFull ? 50 : undefined,
+      ruin: P.RUIN && f.ruin?.length ? f.ruin : undefined, friendGuard: fgOn,
     });
     if (dmgCache.size > 200000) dmgCache.clear();
     dmgCache.set(key, d);
@@ -83,6 +85,7 @@ export interface SM {
 export interface SF {
   tw: [number, number]; tr: number; weather: string; terrain: string;
   screens: [number, number]; redirect: [SM | null, SM | null]; wideGuard: [boolean, boolean];
+  ruin?: string[]; fg?: [string, string];
 }
 export interface Act { kind: 'move' | 'switch' | 'pass'; move?: string; tgt?: number; sw?: SM }
 export interface Sim { act: (SM | null)[][]; out: SM[]; inn: SM[]; f: SF; bench?: SM[][] }
@@ -285,7 +288,7 @@ function hit(s: Sim, m: SM, t: SM, a: Act, d: any, nTargets: number): number {
   if (!r) return 0;
   const L = LUCK[m.side];
   const ERUPT = a.move === 'Eruption' || a.move === 'Water Spout' || a.move === 'Dragon Energy';
-  let amt = L === 0.5 ? r.avgPct : r.minPct + L * (r.maxPct - r.minPct);
+  let amt = L === 0.5 ? r.avgPct : (r.rolls?.length ? r.rolls[Math.round(L * (r.rolls.length - 1))] : r.minPct + L * (r.maxPct - r.minPct));
   if (r.spread && nTargets === 1) amt /= 0.75;
   if (ERUPT) amt *= Math.max(0.01, m.hp / 100);
   if (m.hh) amt *= 1.5;
@@ -565,6 +568,18 @@ function topJoint(s: Sim, side: 0 | 1, perSlot: number, top: number): { acts: Ac
   return joint.slice(0, top);
 }
 
+function smartOpp(sim: Sim): { acts: Act[]; h: number }[] {
+  const all = topJoint(sim, 1, 4, 100);
+  const mine = topJoint(sim, 0, 3, 3);
+  for (const o of all) {
+    let v = 0;
+    for (const mj of mine) { const s = cloneSim(sim); simulate(s, [mj.acts, o.acts]); v += evaluate(s); }
+    o.h = P.SMART * (-v / mine.length) + (1 - P.SMART) * o.h;
+  }
+  all.sort((a, b) => b.h - a.h);
+  return all.slice(0, P.OPP_TOP_JOINT);
+}
+
 // ---------- rollout ----------
 function fillReplacements(s: Sim) {
   if (!s.bench || !P.FILL) return;
@@ -699,6 +714,16 @@ function buildSim(v: BattleView): { sim: Sim; myBench: Map<number, SM> } {
       if (SEMI_INVULN.has(mvName)) m.invuln = true;
     }
   }
+  if (P.RUIN || P.FG) {
+    const ruin = new Set<string>();
+    f.fg = ['', ''];
+    act.forEach((row, side) => row.forEach(m => {
+      if (!m) return;
+      if (m.ability.endsWith(' of Ruin')) ruin.add(m.ability);
+      if (m.ability === 'Friend Guard') f.fg![side] = m.card.id;
+    }));
+    f.ruin = [...ruin];
+  }
   const oppBench: SM[] = [];
   for (const m of st0.opp) if (!m.active && !m.fainted && m.card) oppBench.push(mkMon(1, -1, m.card, { ...m, boosts: {}, turnsOnField: 5 }));
   const unrevealed = 4 - st0.opp.length;
@@ -764,6 +789,38 @@ function predStat(v: BattleView, sim: Sim, oppJ: { acts: Act[]; h: number }[]) {
 }
 process.on('exit', () => { if (PREDSTAT && pstat.n) console.error(`[pred] n=${pstat.n} top=${(pstat.top / pstat.n).toFixed(3)} moveTop=${(pstat.moveTop / pstat.n).toFixed(3)} any=${(pstat.any / pstat.n).toFixed(3)}`); });
 
+// ---------- adaptive opponent model ----------
+const actKey = (a: Act) => (a.move ? a.move + (a.tgt ?? '') : a.kind);
+interface AdaptInfo { pend?: { h: string[]; s: string[] }; hh: number; hs: number }
+const adaptMem = new WeakMap<object, AdaptInfo>();
+function adaptMix(v: BattleView, hj: { acts: Act[] }[], sj: { acts: Act[] }[]): number {
+  let info = adaptMem.get(v.state);
+  if (!info) { info = { hh: 0, hs: 0 }; adaptMem.set(v.state, info); }
+  if (info.pend && P.ADAPT) {
+    const log = v.state.log;
+    let end = log.length - 1;
+    while (end >= 0 && !log[end].startsWith('|turn|')) end--;
+    let start = end - 1;
+    while (start >= 0 && !log[start].startsWith('|turn|')) start--;
+    for (let i = Math.max(0, start); i < end; i++) {
+      const p = log[i].split('|');
+      if (p[1] !== 'move' || p[2].startsWith(v.state.mySide) || log[i].includes('[from]')) continue;
+      const slot = p[2][2] === 'a' ? 0 : 1;
+      const spread = log[i].includes('[spread]');
+      const tgt = !spread && p[4] && p[4].startsWith(v.state.mySide) ? (p[4][2] === 'a' ? '1' : '2') : '';
+      const key = p[3] + tgt;
+      const hk = info.pend.h[slot], sk = info.pend.s[slot];
+      if (!hk || !sk || hk === sk) continue;
+      if (hk === key) info.hh++;
+      if (sk === key) info.hs++;
+    }
+  }
+  info.pend = { h: [0, 1].map(i => actKey(hj[0].acts[i])), s: [0, 1].map(i => actKey(sj[0].acts[i])) };
+  if (!P.ADAPT) return P.MIX;
+  const lg = Math.log(P.MIX / (1 - P.MIX)) + P.ADAPT * (info.hs - info.hh);
+  return 1 / (1 + Math.exp(-lg));
+}
+
 // ---------- main ----------
 export const stats_ = { calls: 0, ms: 0 };
 const TRACE = !!process.env.BATTLER_TRACE;
@@ -807,10 +864,34 @@ function decide(v: BattleView): string {
     return best;
   }
 
-  const oppJ = topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
+  let oppJ: { acts: Act[]; h: number }[];
+  let w: number[];
+  const softmax = (arr: { h: number }[]) => {
+    const mx = Math.max(...arr.map(o => o.h));
+    const e = arr.map(o => Math.exp((o.h - mx) / P.OPP_TEMP));
+    const sum = e.reduce((a, b) => a + b, 0);
+    return e.map(x => x / sum);
+  };
+  if (P.MIX > 0) {
+    const hj = topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
+    const sj = smartOpp(sim);
+    const M = adaptMix(v, hj, sj);
+    const hw = softmax(hj), sw = softmax(sj);
+    const map = new Map<string, { acts: Act[]; h: number; w: number }>();
+    const add = (o: { acts: Act[]; h: number }, wt: number) => {
+      const k = o.acts.map(actKey).join('+');
+      const e = map.get(k);
+      if (e) e.w += wt; else map.set(k, { acts: o.acts, h: o.h, w: wt });
+    };
+    hj.forEach((o, i) => add(o, (1 - M) * hw[i]));
+    sj.forEach((o, i) => add(o, M * sw[i]));
+    oppJ = [...map.values()].sort((a, b) => b.w - a.w).slice(0, P.MIX_TOP);
+    w = oppJ.map(o => (o as any).w);
+  } else {
+    oppJ = P.SMART > 0 ? smartOpp(sim) : topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
+    w = softmax(oppJ);
+  }
   if (PREDSTAT) predStat(v, sim, oppJ);
-  const maxH = Math.max(...oppJ.map(o => o.h));
-  const w = oppJ.map(o => Math.exp((o.h - maxH) / P.OPP_TEMP));
   const wsum = w.reduce((a, b) => a + b, 0);
 
   let best = joints[0].choice, bestScore = -Infinity;
