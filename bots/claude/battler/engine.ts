@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.8, MIX_TOP: 8, ADAPT: 1.2,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.8, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -913,14 +913,25 @@ function decide(v: BattleView): string {
       const r = dmg(me, t, a.move, sim.f);
       if (r) tie += Math.min(r.avgPct, t.hp) * (r.avgPct >= t.hp ? 2 : 1);
     });
+    if (P.DBLPROT && myActs.every(a => a?.move && PROTECTS.has(a.move))) tie -= P.DBLPROT / Math.max(1e-9, P.TIE);
     cands.push({ j, myActs, tie });
   }
+  let mode = 0, lam = P.LAMBDA;
+  if (P.RISK) {
+    const myAlive = (req.side?.pokemon ?? []).filter((p: any) => !String(p.condition).endsWith(' fnt')).length;
+    const oppAlive = 4 - v.state.opp.filter(m => m.fainted).length;
+    const d = myAlive - oppAlive;
+    if (d >= P.RISK_MARGIN) { mode = 1; lam = P.RISK_AHEAD; } else if (d <= -P.RISK_MARGIN) mode = -1;
+  }
+  const SCEN_AHEAD = [[0.5, 0.5, 0.4], [P.LO, P.HI, 0.45], [P.HI, P.LO, 0.15]];
+  let topK = 0;
+  for (let k = 1; k < w.length; k++) if (w[k] > w[topK]) topK = k;
   const scoreJoint = (myActs: (Act | null)[], full: boolean) => {
-    let ev = 0, worst = Infinity;
+    let ev = 0, worst = Infinity, likely = 0;
     for (let k = 0; k < oppJ.length; k++) {
       let val = 0;
       if (!full) { const s = cloneSim(sim); simulate(s, [myActs, oppJ[k].acts]); val = evaluate(s); }
-      else for (const [lm, lo, wt] of SCEN) {
+      else for (const [lm, lo, wt] of (mode > 0 && P.ACC_AHEAD ? SCEN_AHEAD : SCEN)) {
         LUCK[0] = lm; LUCK[1] = lo;
         const s = cloneSim(sim);
         simulate(s, [myActs, oppJ[k].acts]);
@@ -929,8 +940,11 @@ function decide(v: BattleView): string {
       LUCK[0] = 0.5; LUCK[1] = 0.5;
       ev += val * w[k] / wsum;
       if (val < worst) worst = val;
+      if (k === topK) likely = val;
     }
-    return { ev, worst, score: P.LAMBDA * ev + (1 - P.LAMBDA) * worst };
+    let score = lam * ev + (1 - lam) * worst;
+    if (mode < 0) score = (1 - P.RISK_BEHIND) * score + P.RISK_BEHIND * likely;
+    return { ev, worst, score };
   };
   let pool = cands;
   if (P.PRUNE > 0 && cands.length > P.PRUNE) {
