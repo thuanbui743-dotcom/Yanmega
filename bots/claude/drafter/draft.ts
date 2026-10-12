@@ -2,6 +2,8 @@
 // teams with the Team Preview game (both sides choose a bring by brute force over the simulator).
 import type { Card, DraftView, Side } from '../../../src/types';
 import { buildModel, simulate, Model } from './model';
+import { winProb } from '../../../src/lib/oracle';
+const ORC = process.env.DR_ORC !== undefined ? Number(process.env.DR_ORC) : 0.5;
 
 const env = (k: string, d: number) => (process.env[k] !== undefined ? Number(process.env[k]) : d);
 
@@ -85,7 +87,7 @@ export function chooseDraft(v: DraftView): string {
   const opT = v.picks[opp].map(c => m.idx.get(c.id)!);
   const avail = v.available.map(c => m.idx.get(c.id)!);
   const legal = v.legal.map(c => m.idx.get(c.id)!);
-  const L = env('DR_L', 1), beta = env('DR_BETA', 5);
+  const L = env('DR_L', 2), beta = env('DR_BETA', 5);
 
   // Prune candidates to the top-K by power to bound time.
   const K = env('DR_K', 10);
@@ -102,7 +104,9 @@ export function chooseDraft(v: DraftView): string {
       teams[s].push(pick);
       pool = pool.filter(x => x !== pick);
     }
-    return teamValue(m, teams[me], teams[opp], pw, L, beta);
+    let tv = teamValue(m, teams[me], teams[opp], pw, L, beta);
+    if (ORC > 0) { const p = winProb(teams[me].map(i => m.cards[i]), teams[opp].map(i => m.cards[i])); if (p > 0 && p < 1 && p !== 0.5) tv += ORC * Math.log(p / (1 - p)); }
+    return tv;
   };
   const t0 = Date.now(), budget = env("DR_BUDGET_MS", 1500);
   let best = cands[0], bv = -Infinity;

@@ -18,9 +18,9 @@ export interface MatchResult {
 }
 
 /** sideA drafts first and plays as p1. */
-export async function playMatch(seed: number, sideA: Bot, sideB: Bot, opts: { keepLog?: boolean; pickMs?: number; decisionMs?: number } = {}): Promise<MatchResult> {
+export async function playMatch(seed: number, sideA: Bot, sideB: Bot, opts: { keepLog?: boolean; pickMs?: number; decisionMs?: number; pool?: Card[] } = {}): Promise<MatchResult> {
   const rng = new Rng(seed);
-  const pool = drawPool(rng);
+  const pool = opts.pool ?? drawPool(rng);
   const draft = await runDraft(pool, { A: sideA, B: sideB }, rng, opts.pickMs ?? 15000);
   const teams: { p1: Card[]; p2: Card[] } = { p1: draft.picks.A, p2: draft.picks.B };
   const battle = await runBattle(teams, { p1: sideA, p2: sideB }, { keepLog: opts.keepLog, seed: rng.int(2 ** 31), decisionMs: opts.decisionMs });
