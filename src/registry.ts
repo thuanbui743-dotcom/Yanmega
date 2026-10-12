@@ -6,8 +6,10 @@ import * as path from 'path';
 import type { Bot } from './types';
 import { randomBot } from './bots/random';
 import { greedyBot } from './bots/greedy';
+import { randDraftBot } from './bots/randdraft';
+import { oracleBot } from './bots/oracle';
 
-const builtins: Record<string, () => Bot> = { random: randomBot, greedy: greedyBot };
+const builtins: Record<string, () => Bot> = { random: randomBot, greedy: greedyBot, randdraft: randDraftBot, randdraft2: randDraftBot, oracle: () => oracleBot() };
 
 export function listBots(): string[] {
   const root = path.join(__dirname, '..', 'bots');
