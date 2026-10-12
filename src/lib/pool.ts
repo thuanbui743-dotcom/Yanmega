@@ -13,6 +13,7 @@ export interface DmgInfo {
   spread: boolean;     // hits both foes (already includes the 0.75 doubles modifier)
   hitsAlly: boolean;   // e.g. Earthquake, Discharge
   priority: number;
+  rolls: number[];     // the 16 damage rolls as % of defender max HP (multi-hit: summed per roll index)
 }
 
 export interface Mods {
@@ -25,6 +26,13 @@ export interface Mods {
   singleTarget?: boolean; // only one foe left: no 0.75 spread modifier
   weather?: string;
   terrain?: string;
+  helpingHand?: boolean;  // attacker boosted by its ally's Helping Hand
+  reflect?: boolean;      // defender side screens
+  lightScreen?: boolean;
+  auroraVeil?: boolean;
+  friendGuard?: boolean;  // defender's ally has Friend Guard
+  crit?: boolean;
+  ruin?: string[];        // Ruin abilities active on the field (e.g. ['Sword of Ruin'])
 }
 
 const monCache = new Map<string, Pokemon>();
@@ -56,8 +64,14 @@ export function moveDamage(att: Card, def: Card, moveName: string, mods: Mods = 
       gameType: mods.singleTarget ? 'Singles' : 'Doubles',
       weather: (mods.weather ? WEATHER[mods.weather] : undefined) as any,
       terrain: (mods.terrain ? TERRAIN[mods.terrain] : undefined) as any,
+      isSwordOfRuin: mods.ruin?.includes('Sword of Ruin'),
+      isBeadsOfRuin: mods.ruin?.includes('Beads of Ruin'),
+      isTabletsOfRuin: mods.ruin?.includes('Tablets of Ruin'),
+      isVesselOfRuin: mods.ruin?.includes('Vessel of Ruin'),
+      attackerSide: { isHelpingHand: !!mods.helpingHand } as any,
+      defenderSide: { isReflect: !!mods.reflect, isLightScreen: !!mods.lightScreen, isAuroraVeil: !!mods.auroraVeil, isFriendGuard: !!mods.friendGuard } as any,
     });
-    const r = calculate(gen, a, d, new Move(gen, dm.name), field);
+    const r = calculate(gen, a, d, new Move(gen, dm.name, { isCrit: !!mods.crit }), field);
     const [lo, hi] = r.range();
     const max = d.maxHP();
     // Multi-hit moves return one roll array per hit: average each hit, then sum the hits.
@@ -66,12 +80,16 @@ export function moveDamage(att: Card, def: Card, moveName: string, mods: Mods = 
     const avg = !Array.isArray(dmgArr) ? Number(dmgArr)
       : Array.isArray(dmgArr[0]) ? (dmgArr as number[][]).reduce((s, hit) => s + mean(hit), 0)
       : mean(dmgArr as number[]);
+    const rollsAbs: number[] = !Array.isArray(dmgArr) ? new Array(16).fill(Number(dmgArr))
+      : Array.isArray(dmgArr[0]) ? (dmgArr[0] as number[]).map((_, k) => (dmgArr as number[][]).reduce((s, hit) => s + (hit[k] ?? hit[hit.length - 1]), 0))
+      : (dmgArr as number[]);
     return {
       move: dm.name,
       minPct: (lo / max) * 100, maxPct: (hi / max) * 100, avgPct: (avg / max) * 100,
       spread: dm.target === 'allAdjacentFoes' || dm.target === 'allAdjacent',
       hitsAlly: dm.target === 'allAdjacent',
       priority: dm.priority,
+      rolls: rollsAbs.map(x => (x / max) * 100),
     };
   } catch {
     return null;
@@ -129,4 +147,19 @@ export function analyzePool(cards: Card[]): PoolAnalysis {
   const win = cards.map(a => cards.map(b => (a === b ? 0.5 : oneVsOne(a, b))));
   const power = win.map((row, i) => row.reduce((s, x, j) => s + (i === j ? 0 : x), 0) / (n - 1));
   return { cards, idx: new Map(cards.map((c, i) => [c.id, i])), dmg, win, spe: cards.map(speed), power };
+}
+
+/** Probability that one hit KOs a target at hpPct (accuracy not included). */
+export function koChance(d: DmgInfo | null, hpPct: number): number {
+  if (!d) return 0;
+  return d.rolls.filter(x => x >= hpPct).length / d.rolls.length;
+}
+
+/** Probability that two hits together KO a target at hpPct (all 16 x 16 roll pairs). */
+export function comboKoChance(a: DmgInfo | null, b: DmgInfo | null, hpPct: number): number {
+  if (!a) return koChance(b, hpPct);
+  if (!b) return koChance(a, hpPct);
+  let n = 0;
+  for (const x of a.rolls) for (const y of b.rolls) if (x + y >= hpPct) n++;
+  return n / (a.rolls.length * b.rolls.length);
 }
