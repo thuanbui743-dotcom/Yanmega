@@ -136,7 +136,7 @@ function isAttacker(c: Card): boolean {
 
 // Support definitions
 function isSpeedControl(c: Card): boolean {
-  return hasMove(c, 'Tailwind', 'Trick Room', 'Icy Wind', 'Electroweb', 'Thunder Wave');
+  return hasMove(c, 'Tailwind', 'Trick Room', 'Icy Wind', 'Electroweb');
 }
 
 function isTrickRoomSetter(c: Card): boolean {
@@ -455,45 +455,36 @@ function countWeatherSetters(team: Card[]): number {
   return s.size;
 }
 
+function countDistinctPairs(team: Card[], isSetter: (c: Card) => boolean, isAbuser: (c: Card) => boolean): number {
+  const setters = team.filter(isSetter);
+  if (setters.length === 0) return 0;
+  let pairs = 0;
+  for (const c of team) {
+    if (!isAbuser(c)) continue;
+    if (setters.some(s => s.id !== c.id)) {
+      pairs++;
+    }
+  }
+  return pairs;
+}
+
 function countFieldPairs(team: Card[]): number {
   let pairs = 0;
-  const sunSetters = team.filter(isSunSetter).length;
-  const sunAbusers = team.filter(isSunAbuser).length;
-  pairs += sunSetters * sunAbusers;
-
-  const rainSetters = team.filter(isRainSetter).length;
-  const rainAbusers = team.filter(isRainAbuser).length;
-  pairs += rainSetters * rainAbusers;
-
-  const sandSetters = team.filter(isSandSetter).length;
-  const sandAbusers = team.filter(isSandAbuser).length;
-  pairs += sandSetters * sandAbusers;
-
-  const snowSetters = team.filter(isSnowSetter).length;
-  const snowAbusers = team.filter(isSnowAbuser).length;
-  pairs += snowSetters * snowAbusers;
-
-  const elecSetters = team.filter(isElecSetter).length;
-  const elecAbusers = team.filter(isElecAbuser).length;
-  pairs += elecSetters * elecAbusers;
-
-  const psySetters = team.filter(isPsySetter).length;
-  const psyAbusers = team.filter(isPsyAbuser).length;
-  pairs += psySetters * psyAbusers;
-
+  pairs += countDistinctPairs(team, isSunSetter, isSunAbuser);
+  pairs += countDistinctPairs(team, isRainSetter, isRainAbuser);
+  pairs += countDistinctPairs(team, isSandSetter, isSandAbuser);
+  pairs += countDistinctPairs(team, isSnowSetter, isSnowAbuser);
+  pairs += countDistinctPairs(team, isElecSetter, isElecAbuser);
+  pairs += countDistinctPairs(team, isPsySetter, isPsyAbuser);
   return pairs;
 }
 
 function countTwPairs(team: Card[], pool: Card[]): number {
-  const setters = team.filter(isTailwindSetter).length;
-  const midAtk = team.filter(c => isMidAttacker(c, pool)).length;
-  return setters * midAtk;
+  return countDistinctPairs(team, isTailwindSetter, c => isMidAttacker(c, pool));
 }
 
 function countTrPairs(team: Card[], pool: Card[]): number {
-  const setters = team.filter(isTrickRoomSetter).length;
-  const slowAtk = team.filter(c => isSlowAttacker(c, pool)).length;
-  return setters * slowAtk;
+  return countDistinctPairs(team, isTrickRoomSetter, c => isSlowAttacker(c, pool));
 }
 
 function isFastNonSupport(c: Card, pool: Card[], u: UtilityBreakdown): boolean {
@@ -593,8 +584,9 @@ function marginalValueBase(
       weaknessPenalty += 6 * wt;
     }
     const tWeakInT = T.filter(x => isWeakTo(type, x)).length;
-    if (tWeakInT >= 2 && resistsOrImmune(type, c)) {
-      weaknessBonus += 3;
+    const tResistInT = T.filter(x => resistsOrImmune(type, x)).length;
+    if (tWeakInT >= 2 && tResistInT <= 1 && resistsOrImmune(type, c)) {
+      weaknessBonus = 3;
     }
   }
   const weaknessOverlap = weaknessPenalty - weaknessBonus;
@@ -636,6 +628,7 @@ function calculateAllMarginalValues(
   // Top 3 cards by base M
   const sorted = [...legalCards].sort((a, b) => (baseMMap.get(b.id) ?? 0) - (baseMMap.get(a.id) ?? 0));
   const top3 = new Set(sorted.slice(0, 3).map(x => x.id));
+  const fourthM = sorted.length > 3 ? (baseMMap.get(sorted[3].id) ?? 0) : 0;
 
   // ItemCost calculation
   const finalMMap = new Map<string, number>();
@@ -645,7 +638,7 @@ function calculateAllMarginalValues(
     let itemCost = 0;
     if (sameItemRemaining.length > 0) {
       const bestSameM = Math.max(...sameItemRemaining.map(x => baseMMap.get(x.id)!));
-      itemCost = 0.5 * Math.max(0, bestSameM);
+      itemCost = 0.5 * Math.max(0, bestSameM - fourthM);
     }
     finalMMap.set(c.id, baseM - itemCost);
   }
@@ -689,7 +682,8 @@ function evaluateBring4(
   // BringScore(S) = Σ over opponent's cards of [weight(o) × max over s in S of Ans(s,o)] + RoleBonus − WeaknessOverlap
   let sumAns = 0;
   for (const o of targetTeam) {
-    const oWeight = (C_cache.get(o.id) ?? (40 * pa.power[pa.idx.get(o.id)!] + 30)) / 3;
+    const oIdx = pa.idx.get(o.id)!;
+    const oWeight = 50 + 50 * pa.power[oIdx];
     let maxA = -Infinity;
     let sumA = 0;
     for (const s of S) {
@@ -698,15 +692,16 @@ function evaluateBring4(
       sumA += a;
     }
     const meanA = sumA / S.length;
-    sumAns += oWeight * (0.75 * maxA + 0.25 * meanA);
+    sumAns += oWeight * (0.15 * maxA + 0.85 * meanA);
   }
 
-  // RoleBonus: +15 speed control, +8 Fake Out, +8 Intimidate, +5 redirection
+  // RoleBonus: +15 speed control, +8 Fake Out, +8 Intimidate, +5 redirection (scaled to match Ans sum)
+  const oppHasDefiantOrComp = targetTeam.some(o => ['Defiant', 'Competitive', 'Contrary', 'Guard Dog'].includes(o.ability));
   let roleBonus = 0;
-  if (S.some(isSpeedControl)) roleBonus += 15;
-  if (S.some(x => hasMove(x, 'Fake Out'))) roleBonus += 8;
-  if (S.some(x => x.ability === 'Intimidate')) roleBonus += 8;
-  if (S.some(x => hasMove(x, 'Follow Me', 'Rage Powder'))) roleBonus += 5;
+  if (S.some(isSpeedControl)) roleBonus += 5;
+  if (S.some(x => hasMove(x, 'Fake Out'))) roleBonus += 3;
+  if (S.some(x => x.ability === 'Intimidate') && !oppHasDefiantOrComp) roleBonus += 3;
+  if (S.some(x => hasMove(x, 'Follow Me', 'Rage Powder'))) roleBonus += 1;
 
   // WeaknessOverlap
   let weaknessPenalty = 0;
@@ -719,7 +714,7 @@ function evaluateBring4(
     }
     if (weak >= 3 && resist <= 1) {
       const stabCount = targetTeam.filter(o => hasStabOfType80(o, type)).length;
-      weaknessPenalty += 6 * Math.min(2, 0.5 * stabCount);
+      weaknessPenalty += 3 * Math.min(2, 0.5 * stabCount);
     }
   }
 
@@ -735,6 +730,28 @@ interface FoePrediction {
   targetSlot: number; // 0 or 1
   avgPct: number;
   isFakeOut: boolean;
+  isSpread: boolean;
+  bypassesProtect: boolean;
+}
+
+function doesAttackBypassProtect(foeCard: Card, moveName: string): boolean {
+  if (['Hyperspace Fury', 'Hyperspace Hole', 'Hyper Drill', 'Mighty Cleave', 'Phantom Force', 'Shadow Force', 'Feint'].includes(moveName)) {
+    return true;
+  }
+  const dm = Dex.moves.get(moveName);
+  if (foeCard.ability === 'Unseen Fist' && dm.flags?.contact) {
+    return true;
+  }
+  return false;
+}
+
+function isGrounded(mon: MonState): boolean {
+  if (!mon.card) return true;
+  const types = Dex.species.get(mon.card.species).types;
+  if (types.includes('Flying')) return false;
+  if (mon.card.ability === 'Levitate') return false;
+  if (mon.card.item === 'Air Balloon' && !mon.itemConsumed) return false;
+  return true;
 }
 
 function calcBattleDamage(
@@ -746,7 +763,7 @@ function calcBattleDamage(
   singleTarget: boolean,
 ) {
   if (!att.card || !def.card) return null;
-  return moveDamage(att.card, def.card, moveName, {
+  const res = moveDamage(att.card, def.card, moveName, {
     atkBoosts: att.boosts,
     defBoosts: def.boosts,
     atkStatus: att.status,
@@ -757,23 +774,50 @@ function calcBattleDamage(
     weather: fieldWeather,
     terrain: fieldTerrain,
   });
+  if (!res) return null;
+
+  // Focus Sash / Sturdy check at 100% HP against single-hit moves
+  const dm = Dex.moves.get(moveName);
+  const isMultiHit = !!dm.multihit || ['Population Bomb', 'Triple Axel', 'Surging Strikes', 'Dual Wingbeat', 'Tachyon Cutter', 'Twin Beam', 'Dragon Darts', 'Gear Grind', 'Bonemerang', 'Double Iron Bash'].includes(dm.name);
+  if (!isMultiHit && def.hpPct >= 99.9) {
+    const hasIntactSash = def.card.item === 'Focus Sash' && !def.itemConsumed;
+    const ignoresAbility = ['Mold Breaker', 'Teravolt', 'Turboblaze'].includes(att.card.ability) ||
+      ['Sunsteel Strike', 'Moongeist Beam', 'Photon Geyser'].includes(dm.name);
+    const hasSturdy = def.card.ability === 'Sturdy' && !ignoresAbility;
+    if (hasIntactSash || hasSturdy) {
+      return {
+        ...res,
+        minPct: Math.min(res.minPct, 99.4),
+        maxPct: Math.min(res.maxPct, 99.4),
+        avgPct: Math.min(res.avgPct, 99.4),
+      };
+    }
+  }
+  return res;
+}
+
+function isPriorityBlocked(target: MonState, targetAlly?: MonState, terrain?: string): boolean {
+  if (target.fainted) return true;
+  if (!target.card) return false;
+  if (target.card.ability === 'Armor Tail' || target.card.ability === 'Queenly Majesty' || target.card.ability === 'Dazzling') return true;
+  if (targetAlly?.card && !targetAlly.fainted) {
+    const allyAb = targetAlly.card.ability;
+    if (allyAb === 'Armor Tail' || allyAb === 'Queenly Majesty' || allyAb === 'Dazzling') return true;
+  }
+  if ((terrain === 'Psychic' || terrain === 'Psychic Terrain') && isGrounded(target)) {
+    return true;
+  }
+  return false;
 }
 
 function isFakeOutImmune(target: MonState, targetAlly?: MonState, terrain?: string): boolean {
   if (target.fainted) return true;
-  if (!target.card) return false;
+  if (!target.card) return true;
   const types = Dex.species.get(target.card.species).types;
   if (types.includes('Ghost')) return true;
   if (target.card.ability === 'Inner Focus') return true;
-  if (target.card.item === 'Covert Cloak') return true;
-  if (target.card.ability === 'Armor Tail' || target.card.ability === 'Queenly Majesty' || target.card.ability === 'Dazzling') return true;
-  if (targetAlly?.card) {
-    const allyAb = targetAlly.card.ability;
-    if (allyAb === 'Armor Tail' || allyAb === 'Queenly Majesty' || allyAb === 'Dazzling') return true;
-  }
-  if (terrain === 'Psychic' && !types.includes('Flying') && target.card.ability !== 'Levitate' && target.card.item !== 'Air Balloon') {
-    return true;
-  }
+  if (target.card.item === 'Covert Cloak' && !target.itemConsumed) return true;
+  if (isPriorityBlocked(target, targetAlly, terrain)) return true;
   return false;
 }
 
@@ -814,6 +858,8 @@ function predictFoeActions(
           targetSlot: bestTgtSlot,
           avgPct: Math.max(0, maxFoDmg),
           isFakeOut: true,
+          isSpread: false,
+          bypassesProtect: doesAttackBypassProtect(f.card, 'Fake Out'),
         });
         continue;
       }
@@ -840,6 +886,7 @@ function predictFoeActions(
     }
 
     const bestDm = Dex.moves.get(bestMove);
+    const bypass = doesAttackBypassProtect(f.card, bestMove);
     if (bestDm.exists && (bestDm.target === 'allAdjacentFoes' || bestDm.target === 'allAdjacent')) {
       for (let mSlot = 0; mSlot < 2; mSlot++) {
         const m = myActive[mSlot];
@@ -851,6 +898,8 @@ function predictFoeActions(
           targetSlot: mSlot,
           avgPct: Math.max(0, dmg?.avgPct ?? 0),
           isFakeOut: false,
+          isSpread: true,
+          bypassesProtect: bypass,
         });
       }
     } else {
@@ -860,13 +909,15 @@ function predictFoeActions(
         targetSlot: bestTgtSlot,
         avgPct: Math.max(0, maxDmg),
         isFakeOut: false,
+        isSpread: false,
+        bypassesProtect: bypass,
       });
     }
   }
 
   // Retargeting adjustment for single-target attacks:
   // If both foes single-target the same slot and one already KOs it, the other retargets to the other slot
-  if (preds.length === 2 && preds[0].foe !== preds[1].foe && preds[0].targetSlot === preds[1].targetSlot) {
+  if (preds.length === 2 && preds[0].foe !== preds[1].foe && !preds[0].isSpread && !preds[1].isSpread && preds[0].targetSlot === preds[1].targetSlot) {
     const sharedSlot = preds[0].targetSlot;
     const otherSlot = 1 - sharedSlot;
     const otherMon = myActive[otherSlot];
@@ -892,6 +943,7 @@ function predictFoeActions(
         preds[retargetIdx].targetSlot = otherSlot;
         preds[retargetIdx].move = rMove;
         preds[retargetIdx].avgPct = Math.max(0, rMax);
+        preds[retargetIdx].bypassesProtect = doesAttackBypassProtect(rf.card!, rMove);
       }
     }
   }
@@ -902,6 +954,10 @@ function predictFoeActions(
 function calculateSpeedInBattle(m: MonState, field: BattleView['state']['field'], side: 'me' | 'opp' = 'me'): number {
   if (!m.card) return 100;
   let sp = speed(m.card);
+  // If Choice Scarf was knocked off / consumed, remove 1.5x Scarf multiplier
+  if (m.card.item === 'Choice Scarf' && m.itemConsumed) {
+    sp = stats(m.card).spe;
+  }
   // Boost stages
   const b = m.boosts.spe ?? 0;
   if (b > 0) sp = Math.floor(sp * (2 + b) / 2);
@@ -914,12 +970,14 @@ function calculateSpeedInBattle(m: MonState, field: BattleView['state']['field']
   if (side === 'me' && field.tailwind.me > 0) sp *= 2;
   if (side === 'opp' && field.tailwind.opp > 0) sp *= 2;
 
-  // Weather speed abilities
+  // Weather & Terrain speed abilities + Unburden
   const w = field.weather;
   if (m.card.ability === 'Swift Swim' && (w === 'RainDance' || w === 'PrimordialSea')) sp *= 2;
   if (m.card.ability === 'Chlorophyll' && (w === 'SunnyDay' || w === 'DesolateLand')) sp *= 2;
   if (m.card.ability === 'Sand Rush' && w === 'Sandstorm') sp *= 2;
   if (m.card.ability === 'Slush Rush' && w === 'Snowscape') sp *= 2;
+  if (m.card.ability === 'Surge Surfer' && (field.terrain === 'Electric' || field.terrain === 'Electric Terrain')) sp *= 2;
+  if (m.card.ability === 'Unburden' && m.itemConsumed) sp *= 2;
 
   return sp;
 }
@@ -975,7 +1033,64 @@ export default (): Bot => {
         return best.id;
       }
 
-      // Back-to-back picks: choose best pair jointly (M(a) + M(b | a))
+      const mOppMap = v.oppLegal.length > 0 ?
+        calculateAllMarginalValues(oppTeam, myTeam, v.available, v.oppLegal, v.pool, p, sc, C_cache) :
+        new Map<string, number>();
+
+      const oppLegalSorted = [...v.oppLegal].sort((a, b) => (mOppMap.get(b.id) ?? 0) - (mOppMap.get(a.id) ?? 0));
+
+      // Calculate k: how many picks opp makes before my next turn
+      let k = 0;
+      let idx = v.pickIndex + 1;
+      while (idx < v.order.length && v.order[idx] === me) {
+        idx++;
+      }
+      while (idx < v.order.length && v.order[idx] === opp) {
+        k++;
+        idx++;
+      }
+
+      const oppTopKIds = new Set(oppLegalSorted.slice(0, Math.max(1, k)).map(x => x.id));
+      const oppPicksLeft = oppTeam.length < 6 && k > 0;
+      const oppFallbackM = oppLegalSorted.length > k ? (mOppMap.get(oppLegalSorted[k].id) ?? 0) : 0;
+
+      // λ calculation
+      const calcLambda = (c: Card): number => {
+        if (!oppPicksLeft) return 0;
+        const oppVal = mOppMap.get(c.id) ?? 0;
+        const nextBestOpp = oppLegalSorted.find(x => x.id !== c.id);
+        const nextVal = nextBestOpp ? (mOppMap.get(nextBestOpp.id) ?? 0) : 0;
+        if (oppVal - nextVal >= 15) return 0.8;
+        return 0.5;
+      };
+
+      const calcCounter = (c: Card, currentTeam: Card[]): number => {
+        const cIdx = p.idx.get(c.id)!;
+        let cnt = 0;
+        for (const o of oppTeam) {
+          const oIdx = p.idx.get(o.id)!;
+          const tHasAnswer = currentTeam.some(t => p.win[p.idx.get(t.id)!][oIdx] > 0.5);
+          if (!tHasAnswer && p.win[cIdx][oIdx] > 0.5) {
+            cnt++;
+          }
+        }
+        return cnt;
+      };
+
+      const calcDenyAndCounter = (c: Card, currentTeam: Card[]): number => {
+        let deny = 0;
+        if (v.oppLegal.some(x => x.id === c.id) && oppTopKIds.has(c.id)) {
+          const rawOppM = mOppMap.get(c.id) ?? 0;
+          deny = Math.max(0, rawOppM - oppFallbackM);
+        }
+        const lam = calcLambda(c);
+        const isLastPick = currentTeam.length === 5;
+        const kappa = isLastPick ? 5 : 3;
+        const counter = calcCounter(c, currentTeam);
+        return lam * deny + kappa * counter;
+      };
+
+      // Back-to-back picks: choose best pair jointly (M(a) + M(b | a)) with Deny and Counter
       const isBackToBackFirst = v.order[v.pickIndex] === me &&
         v.pickIndex + 1 < v.order.length &&
         v.order[v.pickIndex + 1] === me;
@@ -988,17 +1103,18 @@ export default (): Bot => {
         const mMeMap = calculateAllMarginalValues(myTeam, oppTeam, v.available, v.legal, v.pool, p, sc, C_cache);
 
         for (const a of v.legal) {
-          const ma = mMeMap.get(a.id) ?? 0;
+          const ma = (mMeMap.get(a.id) ?? 0) + calcDenyAndCounter(a, myTeam);
           const availAfterA = v.available.filter(x => x.id !== a.id);
           const itemsA = new Set([...myTeam.map(x => x.item), a.item]);
           const legalB = availAfterA.filter(x => !itemsA.has(x.item));
           const candB = legalB.length ? legalB : availAfterA;
 
-          const mBMap = calculateAllMarginalValues([...myTeam, a], oppTeam, availAfterA, candB, v.pool, p, sc, C_cache);
+          const teamWithA = [...myTeam, a];
+          const mBMap = calculateAllMarginalValues(teamWithA, oppTeam, availAfterA, candB, v.pool, p, sc, C_cache);
           let bestMb = -Infinity;
           let bestBForA = candB[0];
           for (const b of candB) {
-            const mb = mBMap.get(b.id) ?? 0;
+            const mb = (mBMap.get(b.id) ?? 0) + calcDenyAndCounter(b, teamWithA);
             if (mb > bestMb) {
               bestMb = mb;
               bestBForA = b;
@@ -1027,63 +1143,10 @@ export default (): Bot => {
       // Normal pick: PickScore = M_me(c) + λ * Deny(c) + κ * Counter(c)
       const mMeMap = calculateAllMarginalValues(myTeam, oppTeam, v.available, v.legal, v.pool, p, sc, C_cache);
 
-      const mOppMap = v.oppLegal.length > 0 ?
-        calculateAllMarginalValues(oppTeam, myTeam, v.available, v.oppLegal, v.pool, p, sc, C_cache) :
-        new Map<string, number>();
-
-      const oppLegalSorted = [...v.oppLegal].sort((a, b) => (mOppMap.get(b.id) ?? 0) - (mOppMap.get(a.id) ?? 0));
-
-      // Calculate k: how many picks opp makes before my next pick
-      let k = 0;
-      let idx = v.pickIndex + 1;
-      while (idx < v.order.length && v.order[idx] === me) {
-        idx++;
-      }
-      while (idx < v.order.length && v.order[idx] === opp) {
-        k++;
-        idx++;
-      }
-
-      const oppTopKIds = new Set(oppLegalSorted.slice(0, Math.max(1, k)).map(x => x.id));
-      const oppPicksLeft = oppTeam.length < 6 && k > 0;
-
-      // λ calculation
-      const calcLambda = (c: Card): number => {
-        if (!oppPicksLeft) return 0;
-        const oppVal = mOppMap.get(c.id) ?? 0;
-        const nextBestOpp = oppLegalSorted.find(x => x.id !== c.id);
-        const nextVal = nextBestOpp ? (mOppMap.get(nextBestOpp.id) ?? 0) : 0;
-        if (oppVal - nextVal >= 15) return 0.8;
-        return 0.5;
-      };
-
-      // Counter(c): number of opponent cards c beats 1v1 that T has no answer for
-      const isLastPick = myTeam.length === 5;
-      const kappa = isLastPick ? 5 : 3;
-
-      const calcCounter = (c: Card): number => {
-        const cIdx = p.idx.get(c.id)!;
-        let cnt = 0;
-        for (const o of oppTeam) {
-          const oIdx = p.idx.get(o.id)!;
-          const tHasAnswer = myTeam.some(t => p.win[p.idx.get(t.id)!][oIdx] > 0.5);
-          if (!tHasAnswer && p.win[cIdx][oIdx] > 0.5) {
-            cnt++;
-          }
-        }
-        return cnt;
-      };
-
       const pickScores = new Map<string, number>();
       for (const c of v.legal) {
         const mMe = mMeMap.get(c.id) ?? 0;
-        let deny = 0;
-        if (v.oppLegal.some(x => x.id === c.id) && oppTopKIds.has(c.id)) {
-          deny = mOppMap.get(c.id) ?? 0;
-        }
-        const lam = calcLambda(c);
-        const counter = calcCounter(c);
-        const score = mMe + lam * deny + kappa * counter;
+        const score = mMe + calcDenyAndCounter(c, myTeam);
         pickScores.set(c.id, score);
       }
 
@@ -1183,6 +1246,9 @@ export default (): Bot => {
         }
       }
 
+      const cardMatchupScore = (c: Card) => oppLikely4.reduce((sum, o) => sum + oneVsOne(c, o), 0);
+      const oppHasDefiantOrComp = oppLikely4.some(o => ['Defiant', 'Competitive', 'Contrary', 'Guard Dog'].includes(o.ability));
+
       let bestPair = [bestBring[0], bestBring[1]];
       let bestPairScore = -Infinity;
 
@@ -1190,24 +1256,21 @@ export default (): Bot => {
         for (let j = i + 1; j < 4; j++) {
           const a = bestBring[i];
           const b = bestBring[j];
-          let leadScore = 0;
-
-          // Power/ans baseline for the pair so we don't lead frail useless cards
-          const powA = p.power[p.idx.get(a.id)!];
-          const powB = p.power[p.idx.get(b.id)!];
-          leadScore += (powA + powB) * 15;
+          let leadScore = (cardMatchupScore(a) + cardMatchupScore(b)) * 20;
 
           // Keep best answer in back
-          if (a.id !== sStar.id && b.id !== sStar.id) leadScore += 50;
+          if (a.id !== sStar.id && b.id !== sStar.id) leadScore += 2;
 
           // Fake Out in lead
-          if (hasMove(a, 'Fake Out') || hasMove(b, 'Fake Out')) leadScore += 20;
+          if (hasMove(a, 'Fake Out') || hasMove(b, 'Fake Out')) leadScore += 4;
 
           // Speed control in lead
-          if (isSpeedControl(a) || isSpeedControl(b)) leadScore += 15;
+          if (isSpeedControl(a) || isSpeedControl(b)) leadScore += 3;
 
-          // Intimidate in lead
-          if (a.ability === 'Intimidate' || b.ability === 'Intimidate') leadScore += 10;
+          // Intimidate in lead (avoid leading Intimidate into Defiant/Competitive)
+          if (a.ability === 'Intimidate' || b.ability === 'Intimidate') {
+            leadScore += oppHasDefiantOrComp ? -3 : 3;
+          }
 
           if (leadScore > bestPairScore) {
             bestPairScore = leadScore;
@@ -1216,7 +1279,9 @@ export default (): Bot => {
         }
       }
 
-      const back = bestBring.filter(x => x.id !== bestPair[0].id && x.id !== bestPair[1].id);
+      const back = bestBring
+        .filter(x => x.id !== bestPair[0].id && x.id !== bestPair[1].id)
+        .sort((a, b) => cardMatchupScore(b) - cardMatchupScore(a));
       const chosen4 = [bestPair[0], bestPair[1], back[0], back[1]];
       const order = chosen4.map(c => v.myTeam.findIndex(t => t.id === c.id));
 
@@ -1276,10 +1341,19 @@ export default (): Bot => {
       // Opponent prediction
       const foePreds = predictFoeActions(foes, myActive, field.weather, field.terrain);
       const incomingDmg = [0, 0];
+      const protectableIncomingDmg = [0, 0];
+      const unblockableIncomingDmg = [0, 0];
       const targetedCount = [0, 0];
       for (const p of foePreds) {
         incomingDmg[p.targetSlot] += p.avgPct;
-        targetedCount[p.targetSlot]++;
+        if (p.bypassesProtect) {
+          unblockableIncomingDmg[p.targetSlot] += p.avgPct;
+        } else {
+          protectableIncomingDmg[p.targetSlot] += p.avgPct;
+        }
+        if (!p.isSpread) {
+          targetedCount[p.targetSlot]++;
+        }
       }
 
       // Update switchedLastTurn state from tracker's turnsOnField
@@ -1302,10 +1376,11 @@ export default (): Bot => {
         if (!mon || mon.fainted || !mon.card) continue;
 
         const isPredictedKO = incomingDmg[s] >= mon.hpPct;
-        const canProtect = hasProtect(mon.card) && !mon.protectedLastTurn;
+        const canEffectiveProtect = hasProtect(mon.card) && !mon.protectedLastTurn &&
+          protectableIncomingDmg[s] > 0 && unblockableIncomingDmg[s] < mon.hpPct;
         const switchedRecently = switchedLastTurn[s];
 
-        if (isPredictedKO && !canProtect && !switchedRecently) {
+        if (isPredictedKO && !canEffectiveProtect && !switchedRecently) {
           const attacksOnSlot = foePreds.filter(p => p.targetSlot === s);
           let bestBenchChoice = -1;
           let minDmgTaken = Infinity;
@@ -1358,11 +1433,19 @@ export default (): Bot => {
 
         // Target check
         const targetMon = o.target && o.target > 0 ? foes[o.target - 1] : undefined;
+        const targetAlly = o.target && o.target > 0 ? foes[2 - o.target] : undefined;
+
+        // No priority moves into Psychic Terrain / Armor Tail / Queenly Majesty / Dazzling
+        const effPriority = dm.priority + (me.card.ability === 'Prankster' && dm.category === 'Status' ? 1 : 0);
+        if (effPriority > 0 && targetMon?.card) {
+          if (isPriorityBlocked(targetMon, targetAlly, field.terrain)) {
+            return false;
+          }
+        }
 
         // No Ground moves into Flying or Levitate
         if (dm.type === 'Ground' && targetMon?.card) {
-          const tTypes = Dex.species.get(targetMon.card.species).types;
-          if (tTypes.includes('Flying') || targetMon.card.ability === 'Levitate' || targetMon.card.item === 'Air Balloon') {
+          if (!isGrounded(targetMon)) {
             return false;
           }
         }
@@ -1370,9 +1453,18 @@ export default (): Bot => {
         // No status moves into immunity
         if (dm.category === 'Status' && targetMon?.card) {
           const tTypes = Dex.species.get(targetMon.card.species).types;
-          if (dm.name === 'Thunder Wave' && tTypes.includes('Ground')) return false;
-          if (['Spore', 'Sleep Powder'].includes(dm.name) && (tTypes.includes('Grass') || targetMon.card.item === 'Safety Goggles' || targetMon.card.ability === 'Overcoat')) return false;
-          if (dm.name === 'Will-O-Wisp' && tTypes.includes('Fire')) return false;
+          if (dm.name === 'Thunder Wave' && (tTypes.includes('Ground') || tTypes.includes('Electric') || targetMon.card.ability === 'Limber')) return false;
+          if (['Spore', 'Sleep Powder', 'Hypnosis', 'Yawn', 'Sing', 'Dark Void', 'Grass Whistle'].includes(dm.name)) {
+            if (['Spore', 'Sleep Powder'].includes(dm.name) && (tTypes.includes('Grass') || targetMon.card.item === 'Safety Goggles' || targetMon.card.ability === 'Overcoat')) return false;
+            if (['Vital Spirit', 'Insomnia', 'Comatose', 'Sweet Veil', 'Purifying Salt'].includes(targetMon.card.ability)) return false;
+            if ((field.terrain === 'Electric' || field.terrain === 'Electric Terrain') && isGrounded(targetMon)) return false;
+          }
+          if ((field.terrain === 'Misty' || field.terrain === 'Misty Terrain') && isGrounded(targetMon)) {
+            if (['Thunder Wave', 'Will-O-Wisp', 'Spore', 'Sleep Powder', 'Hypnosis', 'Yawn', 'Sing', 'Toxic', 'Glare', 'Stun Spore'].includes(dm.name)) {
+              return false;
+            }
+          }
+          if (dm.name === 'Will-O-Wisp' && (tTypes.includes('Fire') || ['Water Veil', 'Thermal Exchange', 'Purifying Salt', 'Comatose'].includes(targetMon.card.ability))) return false;
           if (targetMon.card.ability === 'Good as Gold') return false;
           if (me.card.ability === 'Prankster' && tTypes.includes('Dark')) return false;
         }
@@ -1512,6 +1604,21 @@ export default (): Bot => {
         avgDmg: number;
       }
 
+      const getMoveSelfCost = (me: MonState, slot: number, dm: any, effDmg: number): number => {
+        if (['Final Gambit', 'Explosion', 'Self-Destruct', 'Misty Explosion'].includes(dm.name)) {
+          return incomingDmg[slot] >= me.hpPct ? 10 : 80;
+        }
+        if (['Mind Blown', 'Steel Beam', 'Chloroblast'].includes(dm.name)) return 25;
+        let cost = 0;
+        if (dm.recoil && me.card?.ability !== 'Rock Head' && me.card?.ability !== 'Magic Guard') {
+          cost += (dm.recoil[0] / dm.recoil[1]) * effDmg * 0.25;
+        }
+        if (typeof dm.accuracy === 'number' && dm.accuracy < 100) {
+          cost += (100 - dm.accuracy) * 0.2;
+        }
+        return cost;
+      };
+
       const evalSlotOption = (slot: number, o: SlotOption): EvaluatedOption => {
         const me = myActive[slot];
         if (o.kind === 'pass') return { option: o, tier: 8, score: 0, avgDmg: 0 };
@@ -1534,12 +1641,14 @@ export default (): Bot => {
               if (d && d.minPct >= tgt.hpPct) {
                 const foeMove = foePreds.find(p => p.foe === tgt)?.move ?? tgt.card.moves[0];
                 const moveFirst = movesBefore(me, o.move, 'me', tgt, foeMove, 'opp');
-                const survivesHit = incomingDmg[slot] < me.hpPct;
+                const effDmg = Math.min(tgt.hpPct, d.avgPct);
+                const selfCost = getMoveSelfCost(me, slot, dm, effDmg);
+                const survivesHit = incomingDmg[slot] < me.hpPct && selfCost < 75;
                 if (moveFirst || survivesHit) {
                   return {
                     option: o,
                     tier: 1,
-                    score: 10000 + (moveFirst ? 500 : 0) + Math.min(tgt.hpPct, d.avgPct),
+                    score: 10000 + (moveFirst ? 500 : 0) + effDmg - selfCost,
                     targetFoeSlot: o.target - 1,
                     minRollKO: true,
                     avgDmg: d.avgPct,
@@ -1555,12 +1664,14 @@ export default (): Bot => {
               if (d && d.minPct >= tgt.hpPct) {
                 const foeMove = foePreds.find(p => p.foe === tgt)?.move ?? tgt.card.moves[0];
                 const moveFirst = movesBefore(me, o.move, 'me', tgt, foeMove, 'opp');
-                const survivesHit = incomingDmg[slot] < me.hpPct;
+                const effDmg = Math.min(tgt.hpPct, d.avgPct);
+                const selfCost = getMoveSelfCost(me, slot, dm, effDmg);
+                const survivesHit = incomingDmg[slot] < me.hpPct && selfCost < 75;
                 if (moveFirst || survivesHit) {
                   return {
                     option: o,
                     tier: 1,
-                    score: 10000 + (moveFirst ? 500 : 0) + Math.min(tgt.hpPct, d.avgPct),
+                    score: 10000 + (moveFirst ? 500 : 0) + effDmg - selfCost,
                     targetFoeSlot: fSlot,
                     minRollKO: true,
                     avgDmg: d.avgPct,
@@ -1592,9 +1703,10 @@ export default (): Bot => {
         }
 
         // Priority 4: Protect slot if incoming damage >= HP or double-targeted, and did not Protect last turn
-        if (o.move === 'Protect' || o.move === 'Detect' || o.move === 'Spiky Shield' || o.move === 'Baneful Bunker') {
+        if (['Protect', 'Detect', 'Spiky Shield', 'Baneful Bunker', 'Silk Trap', 'Burning Bulwark'].includes(o.move)) {
           if (me.protectedLastTurn) return { option: o, tier: 8, score: -500, avgDmg: 0 };
-          const needProtect = incomingDmg[slot] >= me.hpPct || targetedCount[slot] >= 2;
+          const canBlock = protectableIncomingDmg[slot] > 0 && unblockableIncomingDmg[slot] < me.hpPct;
+          const needProtect = canBlock && (incomingDmg[slot] >= me.hpPct || targetedCount[slot] >= 2);
           if (needProtect) {
             return { option: o, tier: 4, score: 6500, avgDmg: 0 };
           }
@@ -1625,11 +1737,13 @@ export default (): Bot => {
           const d = calcBattleDamage(me, tgt, o.move, field.weather, field.terrain, singleTargetForMe);
           if (d) {
             const effDmg = Math.min(tgt.hpPct, d.avgPct);
+            const isSelfKO = ['Final Gambit', 'Explosion', 'Self-Destruct', 'Misty Explosion'].includes(dm.name);
+            const selfKoPenalty = isSelfKO && incomingDmg[slot] < me.hpPct ? 60 : 0;
             const isTopThreat = tgt === topThreatFoe;
             return {
               option: o,
               tier: isTopThreat ? 6 : 7,
-              score: (isTopThreat ? 1000 : 0) + effDmg,
+              score: (isTopThreat ? 1000 : 0) + effDmg - selfKoPenalty,
               targetFoeSlot: tgtSlot,
               minRollKO: false,
               avgDmg: effDmg,
