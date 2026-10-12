@@ -60,8 +60,12 @@ export function moveDamage(att: Card, def: Card, moveName: string, mods: Mods = 
     const r = calculate(gen, a, d, new Move(gen, dm.name), field);
     const [lo, hi] = r.range();
     const max = d.maxHP();
-    const rolls = Array.isArray(r.damage) ? (r.damage as any[]).flat() as number[] : [Number(r.damage)];
-    const avg = rolls.reduce((s, x) => s + x, 0) / rolls.length;
+    // Multi-hit moves return one roll array per hit: average each hit, then sum the hits.
+    const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
+    const dmgArr = r.damage as any;
+    const avg = !Array.isArray(dmgArr) ? Number(dmgArr)
+      : Array.isArray(dmgArr[0]) ? (dmgArr as number[][]).reduce((s, hit) => s + mean(hit), 0)
+      : mean(dmgArr as number[]);
     return {
       move: dm.name,
       minPct: (lo / max) * 100, maxPct: (hi / max) * 100, avgPct: (avg / max) * 100,
