@@ -30,14 +30,40 @@ export function buildLibrary(teams = 4000): Card[] {
   return [...seen.values()];
 }
 
+/** Competitive level-50 sets (Showdown's Battle Stadium factory data): real natures and EVs. */
+export function buildBssLibrary(): Card[] {
+  const data = require('pokemon-showdown/data/random-battles/gen9/bss-factory-sets.json');
+  const cards: Card[] = [];
+  const full = (evs: any) => ({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...evs });
+  for (const k of Object.keys(data)) {
+    for (const s of data[k].sets) {
+      cards.push({
+        id: `b${cards.length}`,
+        species: s.species,
+        item: s.item[0],
+        ability: s.ability[0],
+        nature: s.nature,
+        evs: full(s.evs),
+        ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31, ...(s.ivs ?? {}) },
+        moves: s.moves.map((opts: string[]) => opts[0]),
+        level: 50,
+      });
+    }
+  }
+  return cards;
+}
+
+// VGC_CARDS=bss switches pools to the competitive set library (ids start with "b").
+const SOURCE = process.env.VGC_CARDS === 'bss' ? 'bss' : 'random';
 let cache: Card[] | null = null;
 export function loadLibrary(): Card[] {
   if (cache) return cache;
-  if (!fs.existsSync(LIB_PATH)) {
-    fs.mkdirSync(path.dirname(LIB_PATH), { recursive: true });
-    fs.writeFileSync(LIB_PATH, JSON.stringify(buildLibrary()));
+  const file = SOURCE === 'bss' ? LIB_PATH.replace('cards.json', 'cards-bss.json') : LIB_PATH;
+  if (!fs.existsSync(file)) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(SOURCE === 'bss' ? buildBssLibrary() : buildLibrary()));
   }
-  cache = JSON.parse(fs.readFileSync(LIB_PATH, 'utf8')) as Card[];
+  cache = JSON.parse(fs.readFileSync(file, 'utf8')) as Card[];
   return cache;
 }
 
