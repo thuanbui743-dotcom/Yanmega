@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.8, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -791,11 +791,13 @@ process.on('exit', () => { if (PREDSTAT && pstat.n) console.error(`[pred] n=${ps
 
 // ---------- adaptive opponent model ----------
 const actKey = (a: Act) => (a.move ? a.move + (a.tgt ?? '') : a.kind);
-interface AdaptInfo { pend?: { h: string[]; s: string[] }; hh: number; hs: number }
+const POST = { n: 0, s: 0 };
+process.on('exit', () => { if (POST.n) console.error(`[post] n=${POST.n} mean=${(POST.s / POST.n).toFixed(3)}`); });
+interface AdaptInfo { pend?: { h: string[]; s: string[]; ph: Map<string, number>[]; ps: Map<string, number>[] }; hh: number; hs: number; lg: number }
 const adaptMem = new WeakMap<object, AdaptInfo>();
-function adaptMix(v: BattleView, hj: { acts: Act[] }[], sj: { acts: Act[] }[]): number {
+function adaptMix(v: BattleView, hj: { acts: Act[] }[], sj: { acts: Act[] }[], hw: number[], sw: number[]): number {
   let info = adaptMem.get(v.state);
-  if (!info) { info = { hh: 0, hs: 0 }; adaptMem.set(v.state, info); }
+  if (!info) { info = { hh: 0, hs: 0, lg: 0 }; adaptMem.set(v.state, info); }
   if (info.pend && P.ADAPT) {
     const log = v.state.log;
     let end = log.length - 1;
@@ -809,13 +811,20 @@ function adaptMix(v: BattleView, hj: { acts: Act[] }[], sj: { acts: Act[] }[]): 
       const spread = log[i].includes('[spread]');
       const tgt = !spread && p[4] && p[4].startsWith(v.state.mySide) ? (p[4][2] === 'a' ? '1' : '2') : '';
       const key = p[3] + tgt;
+      if (P.BAYES) {
+        const a = Math.max(P.BAYES_EPS, info.pend.ph[slot].get(key) ?? 0), b = Math.max(P.BAYES_EPS, info.pend.ps[slot].get(key) ?? 0);
+        info.lg += Math.max(-3, Math.min(3, Math.log(b / a)));
+        continue;
+      }
       const hk = info.pend.h[slot], sk = info.pend.s[slot];
       if (!hk || !sk || hk === sk) continue;
       if (hk === key) info.hh++;
       if (sk === key) info.hs++;
     }
   }
-  info.pend = { h: [0, 1].map(i => actKey(hj[0].acts[i])), s: [0, 1].map(i => actKey(sj[0].acts[i])) };
+  const marg = (js: { acts: Act[] }[], ws: number[]) => [0, 1].map(i => { const m = new Map<string, number>(); js.forEach((j, k) => { const key = actKey(j.acts[i]); m.set(key, (m.get(key) ?? 0) + ws[k]); }); return m; });
+  info.pend = { h: [0, 1].map(i => actKey(hj[0].acts[i])), s: [0, 1].map(i => actKey(sj[0].acts[i])), ph: marg(hj, hw), ps: marg(sj, sw) };
+  if (P.BAYES) { const lg = Math.log(P.MIX / (1 - P.MIX)) + P.BAYES * info.lg; let M = 1 / (1 + Math.exp(-lg)); if (P.SHARP) M = Math.max(0, Math.min(1, (M - P.SHARP) / (1 - 2 * P.SHARP))); if (process.env.BATTLER_POST && v.state.field.turn >= 3) { POST.n++; POST.s += M; } return M; }
   if (!P.ADAPT) return P.MIX;
   const lg = Math.log(P.MIX / (1 - P.MIX)) + P.ADAPT * (info.hs - info.hh);
   return 1 / (1 + Math.exp(-lg));
@@ -875,8 +884,8 @@ function decide(v: BattleView): string {
   if (P.MIX > 0) {
     const hj = topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
     const sj = smartOpp(sim);
-    const M = adaptMix(v, hj, sj);
     const hw = softmax(hj), sw = softmax(sj);
+    const M = adaptMix(v, hj, sj, hw, sw);
     const map = new Map<string, { acts: Act[]; h: number; w: number }>();
     const add = (o: { acts: Act[]; h: number }, wt: number) => {
       const k = o.acts.map(actKey).join('+');
@@ -885,7 +894,7 @@ function decide(v: BattleView): string {
     };
     hj.forEach((o, i) => add(o, (1 - M) * hw[i]));
     sj.forEach((o, i) => add(o, M * sw[i]));
-    oppJ = [...map.values()].sort((a, b) => b.w - a.w).slice(0, P.MIX_TOP);
+    oppJ = [...map.values()].filter(o => !P.WFILT || o.w >= P.WFILT).sort((a, b) => b.w - a.w).slice(0, P.MIX_TOP);
     w = oppJ.map(o => (o as any).w);
   } else {
     oppJ = P.SMART > 0 ? smartOpp(sim) : topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
