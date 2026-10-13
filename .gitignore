@@ -1,3 +1,5 @@
 node_modules/
 data/runs/
 data/*.log
+logs/
+scratch/

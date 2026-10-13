@@ -38,14 +38,21 @@ async function handle(req: any): Promise<any> {
   }
 }
 
+// Decision log on stderr (the Python agent writes it to logs/<session>-<agent>.log).
+const log = (msg: string) => process.stderr.write(`${new Date().toISOString()} ${msg}\n`);
+
 const rl = readline.createInterface({ input: process.stdin });
 rl.on('line', async line => {
   let req: any;
   try { req = JSON.parse(line); } catch { return; }
+  const t0 = Date.now();
+  const turn = req.state?.observation?.turn ?? req.state?.observation?.pick_number ?? '';
   try {
     const action = await handle(req);
+    log(`${req.phase} ${turn} ${Date.now() - t0}ms ${JSON.stringify(action)}`);
     process.stdout.write(JSON.stringify({ id: req.id, action }) + '\n');
   } catch (e: any) {
+    log(`${req.phase} ${turn} ${Date.now() - t0}ms ERROR ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' | ')}`);
     process.stdout.write(JSON.stringify({ id: req.id, error: String(e?.message ?? e) }) + '\n');
   }
 });

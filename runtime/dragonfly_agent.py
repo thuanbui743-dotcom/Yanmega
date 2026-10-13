@@ -35,9 +35,12 @@ def _node() -> str:
 
 class Bridge:
     def __init__(self) -> None:
+        logs = REPO / "logs"
+        logs.mkdir(exist_ok=True)
+        self.log = open(logs / f"bridge-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}.log", "a", encoding="utf-8")
         self.proc = subprocess.Popen(
             [_node(), "--import", "tsx", str(REPO / "adapter" / "bridge.ts")],
-            cwd=str(REPO), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            cwd=str(REPO), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
             text=True, encoding="utf-8", bufsize=1,
         )
         self.replies: "queue.Queue[dict]" = queue.Queue()
@@ -104,7 +107,15 @@ class DragonflyAgent:
                     return match
             elif _valid_shape(action, phase):
                 return action
+        self._note(f"FALLBACK phase={phase} reply={'none (timeout or bridge down)' if reply is None else reply}")
         return _fallback(state)
+
+    def _note(self, msg: str) -> None:
+        try:
+            self.bridge.log.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} [agent] {msg}\n")
+            self.bridge.log.flush()
+        except OSError:
+            pass
 
 
 def create_agent():

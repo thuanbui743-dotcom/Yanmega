@@ -23,8 +23,11 @@ function race<T>(work: () => T | Promise<T>, ms: number, fallback: () => T): Pro
     // A throwing fallback must never escape (it would crash the process): resolve undefined instead,
     // and the platform falls back to its own default.
     const safe = () => { try { return fallback(); } catch { return undefined as unknown as T; } };
-    const timer = setTimeout(() => finish(safe()), ms);
-    Promise.resolve().then(work).then(finish, () => finish(safe()));
+    const timer = setTimeout(() => { console.error(`[final] fallback: no answer within ${ms} ms`); finish(safe()); }, ms);
+    Promise.resolve().then(work).then(finish, (e: any) => {
+      console.error(`[final] fallback: ${String(e?.stack ?? e).split('\n').slice(0, 3).join(' | ')}`);
+      finish(safe());
+    });
   });
 }
 
