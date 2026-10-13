@@ -120,7 +120,7 @@ export function chooseDraft(v: DraftView): string {
   };
 
   const t0 = Date.now();
-  const budget = 1500; // Stay strictly under 2s limit
+  const budget = 1100; // Stay strictly under 2s limit
   let best = cands[0], bestVal = -Infinity;
 
   for (const c of cands) {

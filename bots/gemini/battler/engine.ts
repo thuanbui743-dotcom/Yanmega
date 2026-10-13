@@ -1159,50 +1159,27 @@ export function chooseBattleAction(v: BattleView): string {
     return best;
   }
 
-function hasOpponentActedSmart(v: BattleView): boolean {
-  if (v.state.field.tailwind.opp > 0 || v.state.field.trickRoom > 0) return true;
-  if (v.state.opp.some(m => m.protectedLastTurn)) return true;
-  const oppPrefix = v.state.mySide === 'p1' ? 'p2' : 'p1';
-  for (const line of v.state.log) {
-    if (line.includes(`|move|${oppPrefix}`) && (
-      line.includes('|Protect|') || line.includes('|Detect|') || line.includes('|Spiky Shield|') ||
-      line.includes('|Baneful Bunker|') || line.includes('|Wide Guard|') || line.includes('|Tailwind|') ||
-      line.includes('|Trick Room|') || line.includes('|Spore|') || line.includes('|Sleep Powder|') ||
-      line.includes('|Thunder Wave|') || line.includes('|Will-O-Wisp|') || line.includes('|Helping Hand|') ||
-      line.includes('|Follow Me|') || line.includes('|Rage Powder|') || line.includes('|Fake Out|')
-    )) {
-      return true;
-    }
-  }
-  return false;
-}
-
   // Predict opponent joint actions
   const oppJ = getTopJointActions(sim, 1, CONFIG.OPP_TOP_SLOT, CONFIG.OPP_TOP_JOINT);
-  const isSmartOpp = hasOpponentActedSmart(v);
+  const greedyActs = predictGreedyAction(sim);
 
-  let w: number[];
-  if (!isSmartOpp) {
-    const greedyActs = predictGreedyAction(sim);
-    const greedyIdx = oppJ.findIndex(o =>
-      o.acts[0]?.move === greedyActs[0]?.move && o.acts[0]?.tgt === greedyActs[0]?.tgt &&
-      o.acts[1]?.move === greedyActs[1]?.move && o.acts[1]?.tgt === greedyActs[1]?.tgt
-    );
-    if (greedyIdx < 0 && oppJ.length > 0) {
-      oppJ.unshift({ acts: greedyActs, h: oppJ[0].h });
-    }
-    const maxH = Math.max(...oppJ.map(o => o.h));
-    w = oppJ.map((o, idx) => {
-      let weight = Math.exp((o.h - maxH) / CONFIG.OPP_TEMP);
-      if (idx === (greedyIdx >= 0 ? greedyIdx : 0)) {
-        weight *= (1 + CONFIG.GREEDY_PRIOR_WEIGHT);
-      }
-      return weight;
-    });
-  } else {
-    const maxH = Math.max(...oppJ.map(o => o.h));
-    w = oppJ.map(o => Math.exp((o.h - maxH) / CONFIG.OPP_TEMP));
+  // Check if greedy prediction is already in oppJ, otherwise insert it
+  const greedyIdx = oppJ.findIndex(o =>
+    o.acts[0]?.move === greedyActs[0]?.move && o.acts[0]?.tgt === greedyActs[0]?.tgt &&
+    o.acts[1]?.move === greedyActs[1]?.move && o.acts[1]?.tgt === greedyActs[1]?.tgt
+  );
+  if (greedyIdx < 0 && oppJ.length > 0) {
+    oppJ.unshift({ acts: greedyActs, h: oppJ[0].h + 10 });
   }
+
+  const maxH = Math.max(...oppJ.map(o => o.h));
+  const w = oppJ.map((o, idx) => {
+    let weight = Math.exp((o.h - maxH) / CONFIG.OPP_TEMP);
+    if (idx === (greedyIdx >= 0 ? greedyIdx : 0)) {
+      weight *= (1 + CONFIG.GREEDY_PRIOR_WEIGHT);
+    }
+    return weight;
+  });
   const wsum = w.reduce((a, b) => a + b, 0);
 
   // Filter candidates
