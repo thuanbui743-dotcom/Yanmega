@@ -53,11 +53,27 @@ export function buildBssLibrary(): Card[] {
   return cards;
 }
 
-// VGC_CARDS=bss switches pools to the competitive set library (ids start with "b").
-const SOURCE = process.env.VGC_CARDS === 'bss' ? 'bss' : 'random';
+/** The tournament platform's own cards, recorded during Testing (data/platform-cards.json). */
+export function loadPlatformLibrary(): Card[] {
+  const p = path.join(__dirname, '..', 'data', 'platform-cards.json');
+  if (!fs.existsSync(p)) return [];
+  const raw: Record<string, any> = JSON.parse(fs.readFileSync(p, 'utf8'));
+  const STATS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'] as const;
+  const fill = (o: any, d: number) => Object.fromEntries(STATS.map(k => [k, typeof o?.[k] === 'number' ? o[k] : d])) as any;
+  return Object.values(raw).map((c: any) => ({
+    id: c.card_id, species: Dex.species.get(c.species).exists ? Dex.species.get(c.species).name : c.species,
+    item: c.item, ability: c.ability, nature: c.nature || 'Serious', evs: fill(c.evs, 0), ivs: fill(c.ivs, 31),
+    moves: c.moves.map((m: string) => (Dex.moves.get(m).exists ? Dex.moves.get(m).name : m)), level: 50,
+  }));
+}
+
+// VGC_CARDS=bss switches pools to the competitive set library (ids start with "b");
+// VGC_CARDS=platform to the tournament platform's recorded cards (ids start with "vgc-").
+const SOURCE = process.env.VGC_CARDS === 'bss' ? 'bss' : process.env.VGC_CARDS === 'platform' ? 'platform' : 'random';
 let cache: Card[] | null = null;
 export function loadLibrary(): Card[] {
   if (cache) return cache;
+  if (SOURCE === 'platform') return (cache = loadPlatformLibrary());
   const file = SOURCE === 'bss' ? LIB_PATH.replace('cards.json', 'cards-bss.json') : LIB_PATH;
   if (!fs.existsSync(file)) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -73,7 +89,9 @@ export function drawPool(rng: Rng, size = 18): Card[] {
   const pool: Card[] = [];
   const species = new Set<string>();
   const items = new Map<string, number>();
+  let guard = 0;
   while (pool.length < size) {
+    if (++guard > 200000) throw new Error(`card library too small for a ${size}-card pool (${lib.length} cards)`);
     const c = lib[rng.int(lib.length)];
     const base = Dex.species.get(c.species).baseSpecies;
     if (species.has(base) || (items.get(c.item) ?? 0) >= 2) continue;
