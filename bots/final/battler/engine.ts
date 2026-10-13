@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, FIELD: 1, FPRIOR: 0.5, FCAP: 0.85, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -830,6 +830,174 @@ function adaptMix(v: BattleView, hj: { acts: Act[] }[], sj: { acts: Act[] }[], h
   return 1 / (1 + Math.exp(-lg));
 }
 
+// ---------- rule-follower opponent model (field spec) ----------
+function fieldModel(s: Sim): { acts: Act[]; h: number }[] {
+  const f = s.f;
+  const mine = s.act[1], foes = s.act[0];
+  const alive = (x: SM | null): x is SM => !!x && !x.fainted;
+  // the rule-follower's prediction of my actions
+  const incoming = [0, 0], targeted = [0, 0];
+  const preds: { foe: SM; slot: number; move: string; avg: number }[] = [];
+  for (const e of foes) {
+    if (!alive(e)) continue;
+    let best: { slot: number; move: string; avg: number } | null = null;
+    const fo = e.firstTurn && e.card.moves.includes('Fake Out');
+    for (const mvn of fo ? ['Fake Out'] : e.card.moves) {
+      if (mv(mvn).category === 'Status') continue;
+      for (const t of [0, 1]) {
+        const tm = mine[t];
+        if (!alive(tm)) continue;
+        const r = dmg(e, tm, mvn, f);
+        if (r && (!best || r.avgPct > best.avg)) best = { slot: t, move: mvn, avg: r.avgPct };
+      }
+    }
+    if (best) { incoming[best.slot] += best.avg; targeted[best.slot]++; preds.push({ foe: e, ...best }); }
+  }
+  const spe = (m: SM) => effSpeed(m, f);
+  const before = (a: SM, ma: string, b: SM, mb: string) => {
+    const pa = priorityOf(a, { kind: 'move', move: ma }, f), pb = priorityOf(b, { kind: 'move', move: mb }, f);
+    if (pa !== pb) return pa > pb;
+    return f.tr > 0 ? spe(a) < spe(b) : spe(a) > spe(b);
+  };
+  // threat of each of my mons to the rule-follower's side
+  const threat = (e: SM | null) => {
+    if (!alive(e)) return -1;
+    let mx = 0, out = false;
+    for (const m of mine) {
+      if (!alive(m)) continue;
+      if (spe(e) > spe(m)) out = true;
+      for (const mvn of e.card.moves) { const r = dmg(e, m, mvn, f); if (r && r.avgPct > mx) mx = r.avgPct; }
+    }
+    return mx * (out ? 1.3 : 1);
+  };
+  const topT = threat(foes[0]) >= threat(foes[1]) ? 0 : 1;
+  type Ev = { act: Act; tier: number; score: number; tgt?: number; ko: boolean; avg: number };
+  const slotEvals = (slot: number): Ev[] => {
+    const m = mine[slot];
+    if (!alive(m)) return [{ act: { kind: 'pass' }, tier: 8, score: 0, ko: false, avg: 0 }];
+    if (m.charging) return [{ act: { kind: 'move', move: m.charging, tgt: m.chargeTgt ?? topT + 1 }, tier: 1, score: 0, ko: false, avg: 0 }];
+    let moves = m.card.moves;
+    if (m.item.startsWith('Choice') && m.lastMove && moves.includes(m.lastMove)) moves = [m.lastMove];
+    const out: Ev[] = [];
+    for (const name of moves) {
+      const d = mv(name);
+      if (!d.exists) continue;
+      if (name === 'Fake Out' && !m.firstTurn) continue;
+      if (name === 'Trick Room' && f.tr > 0) continue;
+      if (name === 'Tailwind' && f.tw[1] > 0) continue;
+      const spread = d.target === 'allAdjacentFoes' || d.target === 'allAdjacent';
+      const single = d.target === 'normal' || d.target === 'any' || d.target === 'adjacentFoe';
+      const tgts = single ? [0, 1].filter(t => alive(foes[t])) : [-1];
+      for (const t of tgts) {
+        const act: Act = { kind: 'move', move: name, tgt: t >= 0 ? t + 1 : undefined };
+        if (d.category !== 'Status') {
+          const hitList = t >= 0 ? [t] : [0, 1].filter(x => alive(foes[x]));
+          let ko = -1, tot = 0;
+          for (const x of hitList) {
+            const r = dmg(m, foes[x]!, name, f);
+            if (!r) continue;
+            tot += Math.min(foes[x]!.hp, r.avgPct);
+            if (r.minPct >= foes[x]!.hp && ko < 0) {
+              const fp = preds.find(p => p.foe === foes[x]);
+              if (before(m, name, foes[x]!, fp?.move ?? 'Tackle') || incoming[slot] < m.hp) ko = x;
+            }
+          }
+          if (ko >= 0) { out.push({ act, tier: 1, score: 10000 + tot, tgt: ko, ko: true, avg: tot }); continue; }
+          if (name === 'Fake Out' && t >= 0) {
+            const tg = foes[t]!;
+            const imm = tg.types.includes('Ghost') || tg.ability === 'Inner Focus' || tg.item === 'Covert Cloak' || (f.terrain === 'Psychic Terrain' && grounded(tg));
+            if (!imm) { out.push({ act, tier: 2, score: t === topT ? 8500 : 8000, tgt: t, ko: false, avg: 10 }); continue; }
+          }
+          if (spread) {
+            let bestST = 0;
+            for (const mm of m.card.moves) { const dd = mv(mm); if (dd.category === 'Status' || dd.target === 'allAdjacentFoes' || dd.target === 'allAdjacent') continue; for (const x of [0, 1]) if (alive(foes[x])) { const r = dmg(m, foes[x]!, mm, f); if (r) bestST = Math.max(bestST, Math.min(foes[x]!.hp, r.avgPct)); } }
+            if (tot > bestST) { out.push({ act, tier: 5, score: 5500 + tot, ko: false, avg: tot }); continue; }
+            out.push({ act, tier: 7, score: tot, ko: false, avg: tot });
+            continue;
+          }
+          const tt = t >= 0 ? t : topT;
+          out.push({ act, tier: tt === topT ? 6 : 7, score: (tt === topT ? 1000 : 0) + tot, tgt: tt, ko: false, avg: tot });
+          continue;
+        }
+        if (['Tailwind', 'Trick Room', 'Icy Wind', 'Electroweb'].includes(name)) {
+          let flipped = 0, worse = 0;
+          for (const a of mine) for (const b of foes) {
+            if (!alive(a) || !alive(b)) continue;
+            let sa = spe(a), sb = spe(b);
+            const foeFaster = sb > sa;
+            if (name === 'Tailwind') sa *= 2; else if (name !== 'Trick Room') sb = Math.floor(sb * 2 / 3);
+            const meFaster = name === 'Trick Room' || f.tr > 0 ? sa < sb : sa > sb;
+            if (foeFaster && meFaster) flipped++;
+            if (!foeFaster && !meFaster) worse++;
+          }
+          if (flipped - worse >= 2 && incoming[slot] < m.hp) { out.push({ act, tier: 3, score: 7500, ko: false, avg: 5 }); continue; }
+        }
+        if (PROTECTS.has(name)) {
+          if (m.protLast) continue;
+          if (incoming[slot] >= m.hp || targeted[slot] >= 2) out.push({ act, tier: 4, score: 6500, ko: false, avg: 0 });
+          else out.push({ act, tier: 7, score: 2, ko: false, avg: 0 });
+          continue;
+        }
+        out.push({ act, tier: 7, score: 1, ko: false, avg: 0 });
+      }
+    }
+    if (!out.length) out.push({ act: { kind: 'pass' }, tier: 8, score: 0, ko: false, avg: 0 });
+    return out;
+  };
+  const e0 = slotEvals(0), e1 = slotEvals(1);
+  const nAlive = foes.filter(alive).length;
+  let best: { acts: Act[]; h: number } | null = null, bs = -Infinity;
+  for (const a of e0) for (const b of e1) {
+    let sc = (8 - a.tier) * 2000 + a.score + (8 - b.tier) * 2000 + b.score;
+    if (nAlive >= 2 && a.tgt !== undefined && a.tgt === b.tgt) {
+      const hp = foes[a.tgt]?.hp ?? 100;
+      const k0 = a.ko || a.avg >= hp, k1 = b.ko || b.avg >= hp;
+      if (k0 || k1) sc -= 50000; else if (a.avg + b.avg >= hp) sc += 3000; else sc -= 500;
+    }
+    if (sc > bs) { bs = sc; best = { acts: [a.act, b.act], h: 50 }; }
+  }
+  return best ? [best] : [{ acts: [{ kind: 'pass' }, { kind: 'pass' }], h: 0 }];
+}
+
+interface Adapt3 { pend?: Map<string, number>[][]; lg: number[] }
+const adapt3Mem = new WeakMap<object, Adapt3>();
+/** Posterior weights over [heuristic, smart, field] models. */
+function adaptMix3(v: BattleView, models: { js: { acts: Act[] }[]; ws: number[] }[]): number[] {
+  let info = adapt3Mem.get(v.state);
+  if (!info) { info = { lg: [0, Math.log(P.MIX / (1 - P.MIX)), Math.log(P.FPRIOR)] }; adapt3Mem.set(v.state, info); }
+  if (info.pend) {
+    const log = v.state.log;
+    let end = log.length - 1;
+    while (end >= 0 && !log[end].startsWith('|turn|')) end--;
+    let start = end - 1;
+    while (start >= 0 && !log[start].startsWith('|turn|')) start--;
+    for (let i = Math.max(0, start); i < end; i++) {
+      const p = log[i].split('|');
+      if (p[1] !== 'move' || p[2].startsWith(v.state.mySide) || log[i].includes('[from]')) continue;
+      const slot = p[2][2] === 'a' ? 0 : 1;
+      const spread = log[i].includes('[spread]');
+      const tgt = !spread && p[4] && p[4].startsWith(v.state.mySide) ? (p[4][2] === 'a' ? '1' : '2') : '';
+      const key = p[3] + tgt;
+      const lp = info.pend.map(mm => Math.log(Math.max(P.BAYES_EPS, Math.min(P.FCAP, mm[slot].get(key) ?? 0))));
+      for (let k = 0; k < 3; k++) info.lg[k] += Math.max(-3, Math.min(3, lp[k] - lp[0]));
+    }
+  }
+  info.pend = models.map(({ js, ws }) => [0, 1].map(i => { const m = new Map<string, number>(); js.forEach((j, k) => { const key = actKey(j.acts[i]); m.set(key, (m.get(key) ?? 0) + ws[k]); }); return m; }));
+  const mx = Math.max(...info.lg);
+  let post = info.lg.map(x => Math.exp(x - mx));
+  let sum = post.reduce((a, b) => a + b, 0);
+  post = post.map(x => x / sum);
+  if (P.SHARP) {
+    post = post.map(x => (x < P.SHARP ? 0 : x));
+    sum = post.reduce((a, b) => a + b, 0);
+    post = post.map(x => x / sum);
+  }
+  if (process.env.BATTLER_POST && v.state.field.turn >= 3) { POST3.n++; post.forEach((x, k) => (POST3.s[k] += x)); }
+  return post;
+}
+const POST3 = { n: 0, s: [0, 0, 0] };
+process.on('exit', () => { if (POST3.n) console.error(`[post3] n=${POST3.n} h=${(POST3.s[0] / POST3.n).toFixed(2)} s=${(POST3.s[1] / POST3.n).toFixed(2)} f=${(POST3.s[2] / POST3.n).toFixed(2)}`); });
+
 // ---------- main ----------
 export const stats_ = { calls: 0, ms: 0 };
 const TRACE = !!process.env.BATTLER_TRACE;
@@ -885,14 +1053,21 @@ function decide(v: BattleView): string {
     const hj = topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
     const sj = smartOpp(sim);
     const hw = softmax(hj), sw = softmax(sj);
-    const M = adaptMix(v, hj, sj, hw, sw);
+    let M = 0, pf = 0, fj: { acts: Act[]; h: number }[] = [];
+    let ph = 1;
+    if (P.FIELD) {
+      fj = fieldModel(sim);
+      const post = adaptMix3(v, [{ js: hj, ws: hw }, { js: sj, ws: sw }, { js: fj, ws: [1] }]);
+      ph = post[0]; M = post[1]; pf = post[2];
+    } else { M = adaptMix(v, hj, sj, hw, sw); ph = 1 - M; }
     const map = new Map<string, { acts: Act[]; h: number; w: number }>();
     const add = (o: { acts: Act[]; h: number }, wt: number) => {
       const k = o.acts.map(actKey).join('+');
       const e = map.get(k);
       if (e) e.w += wt; else map.set(k, { acts: o.acts, h: o.h, w: wt });
     };
-    hj.forEach((o, i) => add(o, (1 - M) * hw[i]));
+    hj.forEach((o, i) => add(o, ph * hw[i]));
+    fj.forEach(o => add(o, pf));
     sj.forEach((o, i) => add(o, M * sw[i]));
     oppJ = [...map.values()].filter(o => !P.WFILT || o.w >= P.WFILT).sort((a, b) => b.w - a.w).slice(0, P.MIX_TOP);
     w = oppJ.map(o => (o as any).w);
