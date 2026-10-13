@@ -3,6 +3,8 @@
 //   reply:   {"id": n, "action": {...platform play_action action...}} or {"id": n, "error": "..."}
 // The Python agent falls back to a simple legal move on any error or timeout.
 import * as readline from 'readline';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { Bot, PreviewChoice } from '../src/types';
 import { makeBot } from '../src/registry';
 import { MatchMemory, draftView, resolveRosters, lineupFromOrder, previewView } from './convert';
@@ -47,6 +49,13 @@ rl.on('line', async line => {
   try { req = JSON.parse(line); } catch { return; }
   const t0 = Date.now();
   const turn = req.state?.observation?.turn ?? req.state?.observation?.pick_number ?? '';
+  // Keep our own observations for offline debugging (logs/states/<pid>/<n>-<phase>.json).
+  try {
+    const dir = path.join(__dirname, '..', 'logs', 'states', String(process.pid));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${String(req.id).padStart(3, '0')}-${req.phase}.json`),
+      JSON.stringify({ context: { agent_id: req.agent_id }, state: req.state }));
+  } catch { /* logging must never block a decision */ }
   try {
     const action = await handle(req);
     log(`${req.phase} ${turn} ${Date.now() - t0}ms ${JSON.stringify(action)}`);
