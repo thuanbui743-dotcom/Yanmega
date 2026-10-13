@@ -340,5 +340,465 @@
    "Giga Drain",
    "Protect"
   ]
+ },
+ "vgc-salamence": {
+  "card_id": "vgc-salamence",
+  "species": "Salamence",
+  "item": "Lum Berry",
+  "ability": "Intimidate",
+  "nature": "Timid",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "spa": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Draco Meteor",
+   "Hurricane",
+   "Tailwind",
+   "Protect"
+  ]
+ },
+ "vgc-baxcalibur": {
+  "card_id": "vgc-baxcalibur",
+  "species": "Baxcalibur",
+  "item": "Loaded Dice",
+  "ability": "Thermal Exchange",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Icicle Spear",
+   "Glaive Rush",
+   "Ice Shard",
+   "Protect"
+  ]
+ },
+ "vgc-farigiraf": {
+  "card_id": "vgc-farigiraf",
+  "species": "Farigiraf",
+  "item": "Electric Seed",
+  "ability": "Armor Tail",
+  "nature": "Quiet",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "spa": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Trick Room",
+   "Dazzling Gleam",
+   "Psychic",
+   "Helping Hand"
+  ]
+ },
+ "vgc-chien-pao": {
+  "card_id": "vgc-chien-pao",
+  "species": "Chien-Pao",
+  "item": "Focus Sash",
+  "ability": "Sword of Ruin",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Icicle Crash",
+   "Sacred Sword",
+   "Sucker Punch",
+   "Protect"
+  ]
+ },
+ "vgc-lucario": {
+  "card_id": "vgc-lucario",
+  "species": "Lucario",
+  "item": "Life Orb",
+  "ability": "Inner Focus",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Close Combat",
+   "Bullet Punch",
+   "Poison Jab",
+   "Protect"
+  ]
+ },
+ "vgc-gholdengo": {
+  "card_id": "vgc-gholdengo",
+  "species": "Gholdengo",
+  "item": "Air Balloon",
+  "ability": "Good as Gold",
+  "nature": "Timid",
+  "level": 50,
+  "evs": {
+   "spa": 252,
+   "spd": 4,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Make It Rain",
+   "Shadow Ball",
+   "Nasty Plot",
+   "Protect"
+  ]
+ },
+ "vgc-basculegion": {
+  "card_id": "vgc-basculegion",
+  "species": "Basculegion",
+  "item": "Life Orb",
+  "ability": "Adaptability",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Wave Crash",
+   "Aqua Jet",
+   "Liquidation",
+   "Protect"
+  ]
+ },
+ "vgc-thundurus": {
+  "card_id": "vgc-thundurus",
+  "species": "Thundurus",
+  "item": "Life Orb",
+  "ability": "Defiant",
+  "nature": "Timid",
+  "level": 50,
+  "evs": {
+   "spa": 252,
+   "spd": 4,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Thunderbolt",
+   "Sludge Bomb",
+   "Taunt",
+   "Protect"
+  ]
+ },
+ "vgc-landorus-therian": {
+  "card_id": "vgc-landorus-therian",
+  "species": "Landorus-Therian",
+  "item": "Choice Scarf",
+  "ability": "Intimidate",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "atk": 252,
+   "def": 4,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Earthquake",
+   "Rock Slide",
+   "U-turn",
+   "Protect"
+  ]
+ },
+ "vgc-iron-hands": {
+  "card_id": "vgc-iron-hands",
+  "species": "Iron Hands",
+  "item": "Assault Vest",
+  "ability": "Quark Drive",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 236,
+   "atk": 252,
+   "spe": 20
+  },
+  "ivs": {},
+  "moves": [
+   "Fake Out",
+   "Close Combat",
+   "Wild Charge",
+   "Drain Punch"
+  ]
+ },
+ "vgc-torkoal": {
+  "card_id": "vgc-torkoal",
+  "species": "Torkoal",
+  "item": "Charcoal",
+  "ability": "Drought",
+  "nature": "Quiet",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "spa": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Eruption",
+   "Heat Wave",
+   "Yawn",
+   "Protect"
+  ]
+ },
+ "vgc-hatterene": {
+  "card_id": "vgc-hatterene",
+  "species": "Hatterene",
+  "item": "Safety Goggles",
+  "ability": "Magic Bounce",
+  "nature": "Quiet",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "spa": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Trick Room",
+   "Dazzling Gleam",
+   "Psychic",
+   "Mystical Fire"
+  ]
+ },
+ "vgc-iron-treads": {
+  "card_id": "vgc-iron-treads",
+  "species": "Iron Treads",
+  "item": "Booster Energy",
+  "ability": "Quark Drive",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Earthquake",
+   "Iron Head",
+   "High Horsepower",
+   "Protect"
+  ]
+ },
+ "vgc-dondozo": {
+  "card_id": "vgc-dondozo",
+  "species": "Dondozo",
+  "item": "Leftovers",
+  "ability": "Unaware",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Wave Crash",
+   "Earthquake",
+   "Liquidation",
+   "Protect"
+  ]
+ },
+ "vgc-flutter-mane": {
+  "card_id": "vgc-flutter-mane",
+  "species": "Flutter Mane",
+  "item": "Booster Energy",
+  "ability": "Protosynthesis",
+  "nature": "Timid",
+  "level": 50,
+  "evs": {
+   "spa": 252,
+   "spd": 4,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Moonblast",
+   "Shadow Ball",
+   "Icy Wind",
+   "Protect"
+  ]
+ },
+ "vgc-ursaluna": {
+  "card_id": "vgc-ursaluna",
+  "species": "Ursaluna",
+  "item": "Flame Orb",
+  "ability": "Guts",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Facade",
+   "Headlong Rush",
+   "Earthquake",
+   "Protect"
+  ]
+ },
+ "vgc-great-tusk": {
+  "card_id": "vgc-great-tusk",
+  "species": "Great Tusk",
+  "item": "Booster Energy",
+  "ability": "Protosynthesis",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 252,
+   "spe": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Headlong Rush",
+   "Close Combat",
+   "Rock Slide",
+   "Protect"
+  ]
+ },
+ "vgc-porygon2": {
+  "card_id": "vgc-porygon2",
+  "species": "Porygon2",
+  "item": "Eviolite",
+  "ability": "Download",
+  "nature": "Quiet",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "spa": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Trick Room",
+   "Tri Attack",
+   "Ice Beam",
+   "Recover"
+  ]
+ },
+ "vgc-urshifu-rapid-strike": {
+  "card_id": "vgc-urshifu-rapid-strike",
+  "species": "Urshifu-Rapid-Strike",
+  "item": "Mystic Water",
+  "ability": "Unseen Fist",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Surging Strikes",
+   "Close Combat",
+   "Aqua Jet",
+   "Protect"
+  ]
+ },
+ "vgc-toxapex": {
+  "card_id": "vgc-toxapex",
+  "species": "Toxapex",
+  "item": "Black Sludge",
+  "ability": "Regenerator",
+  "nature": "Careful",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "def": 4,
+   "spd": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Liquidation",
+   "Haze",
+   "Toxic",
+   "Protect"
+  ]
+ },
+ "vgc-cresselia": {
+  "card_id": "vgc-cresselia",
+  "species": "Cresselia",
+  "item": "Sitrus Berry",
+  "ability": "Levitate",
+  "nature": "Bold",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "def": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Icy Wind",
+   "Moonblast",
+   "Helping Hand",
+   "Protect"
+  ]
+ },
+ "vgc-amoonguss": {
+  "card_id": "vgc-amoonguss",
+  "species": "Amoonguss",
+  "item": "Rocky Helmet",
+  "ability": "Regenerator",
+  "nature": "Bold",
+  "level": 50,
+  "evs": {
+   "hp": 244,
+   "def": 172,
+   "spd": 92
+  },
+  "ivs": {},
+  "moves": [
+   "Spore",
+   "Rage Powder",
+   "Pollen Puff",
+   "Sludge Bomb"
+  ]
+ },
+ "vgc-indeedee-f": {
+  "card_id": "vgc-indeedee-f",
+  "species": "Indeedee-F",
+  "item": "Rocky Helmet",
+  "ability": "Psychic Surge",
+  "nature": "Bold",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "def": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Follow Me",
+   "Helping Hand",
+   "Dazzling Gleam",
+   "Psychic"
+  ]
  }
 }
