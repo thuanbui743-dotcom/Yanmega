@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, FIELD: 1, FPRIOR: 0.5, FCAP: 0.85, SWC: 0, SW_UNC: 0, SW_CHAIN: 0, SW_T1D: 0, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, FIELD: 1, FPRIOR: 0.5, FCAP: 0.85, SWC: 0, RM: 1, RM_MARGIN: 4, RM_K: 6, RM_ITERS: 300, RM_PRIOR: 0.5, SW_UNC: 0, SW_CHAIN: 0, SW_T1D: 0, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -999,6 +999,38 @@ function adaptMix3(v: BattleView, models: { js: { acts: Act[] }[]; ws: number[] 
 const POST3 = { n: 0, s: [0, 0, 0] };
 process.on('exit', () => { if (POST3.n) console.error(`[post3] n=${POST3.n} h=${(POST3.s[0] / POST3.n).toFixed(2)} s=${(POST3.s[1] / POST3.n).toFixed(2)} f=${(POST3.s[2] / POST3.n).toFixed(2)}`); });
 
+// ---------- mixed strategy ----------
+export const FORCE: { opp: Act[] | null } = { opp: null };
+/** Regret matching on a zero-sum matrix A[i][k] (row player maximizes). Returns the row player's average strategy.
+ *  prior blends the column player's play toward the predicted distribution q. */
+function regretMatch(A: number[][], q: number[], iters: number, prior: number): number[] {
+  const n = A.length, m = A[0].length;
+  const rR = new Array(n).fill(0), rC = new Array(m).fill(0), sR = new Array(n).fill(0);
+  const norm = (r: number[]) => { const p = r.map(x => Math.max(0, x)); const s = p.reduce((a, b) => a + b, 0); return s > 0 ? p.map(x => x / s) : p.map(() => 1 / p.length); };
+  for (let it = 0; it < iters; it++) {
+    const x = norm(rR);
+    let y = norm(rC);
+    y = y.map((v, k) => (1 - prior) * v + prior * q[k]);
+    const rowU = A.map(row => row.reduce((s, a, k) => s + a * y[k], 0));
+    const colU = new Array(m).fill(0).map((_, k) => -A.reduce((s, row, i) => s + row[k] * x[i], 0));
+    const uR = rowU.reduce((s, u, i) => s + u * x[i], 0), uC = colU.reduce((s, u, k) => s + u * y[k], 0);
+    for (let i = 0; i < n; i++) { rR[i] += rowU[i] - uR; sR[i] += x[i]; }
+    for (let k = 0; k < m; k++) rC[k] += colU[k] - uC;
+  }
+  const s = sR.reduce((a, b) => a + b, 0);
+  return sR.map(x => x / s);
+}
+const rngMem = new WeakMap<object, () => number>();
+function battleRng(v: BattleView): () => number {
+  let r = rngMem.get(v.state);
+  if (!r) {
+    let x = (Math.floor(Math.random() * 2 ** 31) ^ 0x9e3779b9) >>> 0 || 1;
+    r = () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+    rngMem.set(v.state, r);
+  }
+  return r;
+}
+
 // ---------- main ----------
 export const stats_ = { calls: 0, ms: 0 };
 const TRACE = !!process.env.BATTLER_TRACE;
@@ -1050,7 +1082,10 @@ function decide(v: BattleView): string {
     const sum = e.reduce((a, b) => a + b, 0);
     return e.map(x => x / sum);
   };
-  if (P.MIX > 0) {
+  if (FORCE.opp) {
+    oppJ = [{ acts: FORCE.opp, h: 0 }];
+    w = [1];
+  } else if (P.MIX > 0) {
     const hj = topJoint(sim, 1, P.OPP_TOP_SLOT, P.OPP_TOP_JOINT);
     const sj = smartOpp(sim);
     const hw = softmax(hj), sw = softmax(sj);
@@ -1125,6 +1160,7 @@ function decide(v: BattleView): string {
   for (let k = 1; k < w.length; k++) if (w[k] > w[topK]) topK = k;
   const scoreJoint = (myActs: (Act | null)[], full: boolean) => {
     let ev = 0, worst = Infinity, likely = 0;
+    const vals: number[] = [];
     for (let k = 0; k < oppJ.length; k++) {
       let val = 0;
       if (!full) { const s = cloneSim(sim); simulate(s, [myActs, oppJ[k].acts]); val = evaluate(s); }
@@ -1138,20 +1174,32 @@ function decide(v: BattleView): string {
       ev += val * w[k] / wsum;
       if (val < worst) worst = val;
       if (k === topK) likely = val;
+      vals.push(val);
     }
     let score = lam * ev + (1 - lam) * worst;
     if (mode < 0) score = (1 - P.RISK_BEHIND) * score + P.RISK_BEHIND * likely;
-    return { ev, worst, score };
+    return { ev, worst, score, vals };
   };
   let pool = cands;
   if (P.PRUNE > 0 && cands.length > P.PRUNE) {
     pool = cands.map(c => ({ c, s: scoreJoint(c.myActs, false).score + P.TIE * c.tie })).sort((a, b) => b.s - a.s).slice(0, P.PRUNE).map(x => x.c);
   }
+  const scored: { choice: string; score: number; vals: number[] }[] = [];
   for (const { j, myActs, tie } of pool) {
-    const { ev, worst, score: sc } = scoreJoint(myActs, true);
+    const { ev, worst, score: sc, vals } = scoreJoint(myActs, true);
     const score = sc + P.TIE * tie;
     if (TRACE) trace.push({ c: j.choice, ev, worst, score });
+    scored.push({ choice: j.choice, score, vals: vals.map(x => x + P.TIE * tie) });
     if (score > bestScore) { bestScore = score; best = j.choice; }
+  }
+  if (P.RM > 0 && !FORCE.opp && oppJ.length > 1) {
+    const near = scored.filter(x => x.score >= bestScore - P.RM_MARGIN).sort((a, b) => b.score - a.score).slice(0, P.RM_K);
+    if (near.length > 1) {
+      const mix = regretMatch(near.map(x => x.vals), w.map(x => x / wsum), P.RM_ITERS, P.RM_PRIOR);
+      const u = battleRng(v)();
+      let acc = 0;
+      for (let i = 0; i < near.length; i++) { acc += mix[i]; if (u <= acc) { best = near[i].choice; break; } }
+    }
   }
   if (TRACE) {
     const nm = (m: SM | null) => (m ? `${m.card.species}(${m.hp.toFixed(0)})` : '-');
