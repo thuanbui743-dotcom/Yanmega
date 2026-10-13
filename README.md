@@ -78,14 +78,17 @@ Interface (`src/types.ts`): `draftPick(view) -> cardId`, `teamPreview(view) -> {
 
 | Matchup | Result |
 |---|---|
-| **final/bot** (drafter v4 + battler v7) vs gemini/best / field bot / greedy (1,800 matches) | **57% / 86% / 95%** |
+| **final/bot** (drafter v10 + battler v7) vs gemini/best / field bot / llmlike / greedy | **59% / 85% / 93% / 100%** |
+| final/bot vs gemini/best (`VGC_CARDS=bss`, 100 matches) | 59% (64% drafting first) |
+| claude/best_v10 vs gemini/best (`VGC_CARDS=bss`, 200 matches) | 59% (66% drafting first) |
+| final/bot vs claude/best (baseline) | 52.5% vs 47.5% |
+| Stacked 4x type weaknesses | Reduced from 15.8% -> 2.5% |
 | claude/best vs greedy | 93% |
 | claude/best vs battler with greedy draft | 66% (the draft adds this much) |
-| claude/best vs gemini/best (Round 1, 300) | 56% (59% drafting first, 53% second) |
 | Claude battling vs Gemini battling, same drafts | 58 to 62% |
 | Battler v6 vs greedy / v4 / Gemini battling | 79.3% / 49% / 59% |
-| Competitive card pool (`VGC_CARDS=bss`), best vs greedy | 85% |
 | Edge-case stress pools (Ditto, Illusion, Commander, two-turn moves...) | 0 crashes, 0 invalid |
+| Revival Blessing regression tests (40 battles, 10 revivals) | 0 crashes, 0 invalid |
 
 **Tested and rejected** (no measurable gain): rule-of-two preview penalty, risk mode by game state, accuracy preference when ahead, double-Protect penalty, switch-risk costs (measured: switch reads are right about 72% of the time and save about 20% HP), endgame draft minimax.
 

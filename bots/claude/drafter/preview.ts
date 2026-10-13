@@ -2,6 +2,7 @@
 import type { Card, PreviewChoice } from '../../../src/types';
 import { oneVsOne } from '../../../src/lib/pool';
 import { buildModel, bringOrders, simulate, Model } from './model';
+import { attackWeights, bringPenalty } from './weak';
 
 /** Approximate Nash equilibrium of a zero-sum payoff matrix (row player maximizes) via fictitious play. */
 export function solveGame(P: number[][], iters = 300): { row: number[]; col: number[]; value: number } {
@@ -37,7 +38,11 @@ export function choosePreview(myTeam: Card[], oppTeam: Card[]): PreviewChoice {
   let mine = bringOrders(me);
   const theirs = bringOrders(opp);
   if (!process.env.PV_NOBENCH) mine = mine.flatMap(o => o.length === 4 ? [o, [o[0], o[1], o[3], o[2]]] : [o]);
-  const P = payoff(m, mine, theirs);
+  const WB = process.env.PV_WB !== undefined ? Number(process.env.PV_WB) : 0.06;
+  const aOpp = attackWeights(oppTeam), aMe = attackWeights(myTeam);
+  const pA = mine.map(o => WB * bringPenalty(o.slice(0, 4).map(i => m.cards[i]), aOpp));
+  const pB = theirs.map(o => WB * bringPenalty(o.slice(0, 4).map(i => m.cards[i]), aMe));
+  const P = payoff(m, mine, theirs).map((row, i) => row.map((x, j) => x - pA[i] + pB[j]));
 
   const mode = process.env.PV_MODE || "soft";
   if (mode === "maximin") { let bi2 = 0, bv2 = -Infinity; for (let i = 0; i < mine.length; i++) { const mn = Math.min(...P[i]); if (mn > bv2) { bv2 = mn; bi2 = i; } } return { order: mine[bi2] }; }

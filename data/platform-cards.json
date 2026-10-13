@@ -800,5 +800,579 @@
    "Dazzling Gleam",
    "Psychic"
   ]
+ },
+ "vgc-sneasler": {
+  "card_id": "vgc-sneasler",
+  "species": "Sneasler",
+  "item": "Aguav Berry",
+  "ability": "Unburden",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "atk": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Fake Out",
+   "Close Combat",
+   "Dire Claw",
+   "Protect"
+  ]
+ },
+ "vgc-gyarados": {
+  "card_id": "vgc-gyarados",
+  "species": "Gyarados",
+  "item": "Sitrus Berry",
+  "ability": "Intimidate",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 252,
+   "spe": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Waterfall",
+   "Earthquake",
+   "Taunt",
+   "Protect"
+  ]
+ },
+ "vgc-sylveon": {
+  "card_id": "vgc-sylveon",
+  "species": "Sylveon",
+  "item": "Wiki Berry",
+  "ability": "Pixilate",
+  "nature": "Modest",
+  "level": 50,
+  "evs": {
+   "hp": 244,
+   "spa": 252,
+   "spd": 12
+  },
+  "ivs": {},
+  "moves": [
+   "Hyper Voice",
+   "Shadow Ball",
+   "Calm Mind",
+   "Protect"
+  ]
+ },
+ "vgc-tyranitar": {
+  "card_id": "vgc-tyranitar",
+  "species": "Tyranitar",
+  "item": "Chople Berry",
+  "ability": "Sand Stream",
+  "nature": "Careful",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 4,
+   "spd": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Rock Slide",
+   "Knock Off",
+   "Low Kick",
+   "Protect"
+  ]
+ },
+ "vgc-scream-tail": {
+  "card_id": "vgc-scream-tail",
+  "species": "Scream Tail",
+  "item": "Covert Cloak",
+  "ability": "Protosynthesis",
+  "nature": "Bold",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "def": 252,
+   "spd": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Dazzling Gleam",
+   "Encore",
+   "Wish",
+   "Protect"
+  ]
+ },
+ "vgc-talonflame": {
+  "card_id": "vgc-talonflame",
+  "species": "Talonflame",
+  "item": "Sharp Beak",
+  "ability": "Gale Wings",
+  "nature": "Jolly",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 4,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Tailwind",
+   "Brave Bird",
+   "Taunt",
+   "Protect"
+  ]
+ },
+ "vgc-chi-yu": {
+  "card_id": "vgc-chi-yu",
+  "species": "Chi-Yu",
+  "item": "Choice Specs",
+  "ability": "Beads of Ruin",
+  "nature": "Timid",
+  "level": 50,
+  "evs": {
+   "hp": 4,
+   "spa": 252,
+   "spe": 252
+  },
+  "ivs": {},
+  "moves": [
+   "Heat Wave",
+   "Dark Pulse",
+   "Overheat",
+   "Snarl"
+  ]
+ },
+ "vgc-kingambit": {
+  "card_id": "vgc-kingambit",
+  "species": "Kingambit",
+  "item": "Black Glasses",
+  "ability": "Supreme Overlord",
+  "nature": "Adamant",
+  "level": 50,
+  "evs": {
+   "hp": 252,
+   "atk": 252,
+   "spe": 4
+  },
+  "ivs": {},
+  "moves": [
+   "Sucker Punch",
+   "Iron Head",
+   "Kowtow Cleave",
+   "Protect"
+  ]
+ },
+ "c1260": {
+  "card_id": "c1260",
+  "species": "Mesprit",
+  "item": "Life Orb",
+  "ability": "Levitate",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Protect",
+   "Psychic",
+   "Nasty Plot",
+   "Thunderbolt"
+  ]
+ },
+ "c940": {
+  "card_id": "c940",
+  "species": "Passimian",
+  "item": "Choice Scarf",
+  "ability": "Defiant",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "U-turn",
+   "Close Combat",
+   "Knock Off",
+   "Rock Slide"
+  ]
+ },
+ "c1787": {
+  "card_id": "c1787",
+  "species": "Sawsbuck",
+  "item": "Life Orb",
+  "ability": "Sap Sipper",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Double-Edge",
+   "Swords Dance",
+   "Horn Leech",
+   "High Horsepower"
+  ]
+ },
+ "c1404": {
+  "card_id": "c1404",
+  "species": "Araquanid",
+  "item": "Sitrus Berry",
+  "ability": "Water Bubble",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Protect",
+   "Sticky Web",
+   "Liquidation",
+   "Leech Life"
+  ]
+ },
+ "c366": {
+  "card_id": "c366",
+  "species": "Meganium",
+  "item": "Sitrus Berry",
+  "ability": "Overgrow",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Encore",
+   "Knock Off",
+   "Energy Ball",
+   "Heal Pulse"
+  ]
+ },
+ "c572": {
+  "card_id": "c572",
+  "species": "Latias",
+  "item": "Soul Dew",
+  "ability": "Levitate",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Protect",
+   "Draco Meteor",
+   "Tailwind",
+   "Mist Ball"
+  ]
+ },
+ "c1814": {
+  "card_id": "c1814",
+  "species": "Perrserker",
+  "item": "Assault Vest",
+  "ability": "Steely Spirit",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "U-turn",
+   "Fake Out",
+   "Iron Head",
+   "Close Combat"
+  ]
+ },
+ "c990": {
+  "card_id": "c990",
+  "species": "Garganacl",
+  "item": "Leftovers",
+  "ability": "Purifying Salt",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Protect",
+   "Recover",
+   "Salt Cure",
+   "Stealth Rock"
+  ]
+ },
+ "c524": {
+  "card_id": "c524",
+  "species": "Polteageist",
+  "item": "White Herb",
+  "ability": "Cursed Body",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Shadow Ball",
+   "Protect",
+   "Shell Smash",
+   "Baton Pass"
+  ]
+ },
+ "c643": {
+  "card_id": "c643",
+  "species": "Archaludon",
+  "item": "Power Herb",
+  "ability": "Stamina",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Dragon Pulse",
+   "Protect",
+   "Electro Shot",
+   "Flash Cannon"
+  ]
+ },
+ "c1050": {
+  "card_id": "c1050",
+  "species": "Ariados",
+  "item": "Rocky Helmet",
+  "ability": "Insomnia",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Megahorn",
+   "Sticky Web",
+   "Rage Powder",
+   "Protect"
+  ]
+ },
+ "c987": {
+  "card_id": "c987",
+  "species": "Florges",
+  "item": "Leftovers",
+  "ability": "Flower Veil",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Calm Mind",
+   "Protect",
+   "Dazzling Gleam",
+   "Synthesis"
+  ]
+ },
+ "c1643": {
+  "card_id": "c1643",
+  "species": "Necrozma-Dusk-Mane",
+  "item": "Weakness Policy",
+  "ability": "Prism Armor",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 0
+  },
+  "ivs": {},
+  "moves": [
+   "Trick Room",
+   "Earthquake",
+   "Sunsteel Strike",
+   "Protect"
+  ]
+ },
+ "c1112": {
+  "card_id": "c1112",
+  "species": "Tyranitar",
+  "item": "Assault Vest",
+  "ability": "Sand Stream",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Icy Wind",
+   "High Horsepower",
+   "Knock Off",
+   "Stone Edge"
+  ]
+ },
+ "c362": {
+  "card_id": "c362",
+  "species": "Magmortar",
+  "item": "Choice Specs",
+  "ability": "Flame Body",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Focus Blast",
+   "Fire Blast",
+   "Heat Wave",
+   "Thunderbolt"
+  ]
+ },
+ "c1767": {
+  "card_id": "c1767",
+  "species": "Vivillon-Ocean",
+  "item": "Focus Sash",
+  "ability": "Compound Eyes",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 0,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Protect",
+   "Hurricane",
+   "Sleep Powder",
+   "Pollen Puff"
+  ]
+ },
+ "c943": {
+  "card_id": "c943",
+  "species": "Emboar",
+  "item": "Choice Band",
+  "ability": "Reckless",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Knock Off",
+   "Close Combat",
+   "Flare Blitz",
+   "Wild Charge"
+  ]
+ },
+ "c78": {
+  "card_id": "c78",
+  "species": "Golem",
+  "item": "Weakness Policy",
+  "ability": "Sturdy",
+  "nature": "Serious",
+  "level": 50,
+  "evs": {
+   "hp": 85,
+   "atk": 85,
+   "def": 85,
+   "spa": 85,
+   "spd": 85,
+   "spe": 85
+  },
+  "ivs": {},
+  "moves": [
+   "Rock Slide",
+   "Protect",
+   "Rock Polish",
+   "High Horsepower"
+  ]
  }
 }

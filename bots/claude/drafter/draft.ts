@@ -3,6 +3,9 @@
 import type { Card, DraftView, Side } from '../../../src/types';
 import { buildModel, simulate, Model } from './model';
 import { winProb } from '../../../src/lib/oracle';
+import { exploit, stackPenalty, attackWeights } from './weak';
+const XC = process.env.DR_XC !== undefined ? Number(process.env.DR_XC) : 0.1;
+const WS = process.env.DR_WS !== undefined ? Number(process.env.DR_WS) : 0.02;
 const ORC = process.env.DR_ORC !== undefined ? Number(process.env.DR_ORC) : 0.5;
 
 const env = (k: string, d: number) => (process.env[k] !== undefined ? Number(process.env[k]) : d);
@@ -100,11 +103,19 @@ export function chooseDraft(v: DraftView): string {
       const s = v.order[p];
       const lg = legalFor(teams[s], pool, m);
       let pick = lg[0];
-      for (const x of lg) if (pw[x] > pw[pick]) pick = x;
+      if (s === opp && XC > 0) {
+        const T = teams[me].map(i => m.cards[i]);
+        let bs = -Infinity;
+        for (const x of lg) { const sc = pw[x] + XC * exploit(m.cards[x], T); if (sc > bs) { bs = sc; pick = x; } }
+      } else for (const x of lg) if (pw[x] > pw[pick]) pick = x;
       teams[s].push(pick);
       pool = pool.filter(x => x !== pick);
     }
     let tv = teamValue(m, teams[me], teams[opp], pw, L, beta);
+    if (WS > 0) {
+      const Tm = teams[me].map(i => m.cards[i]), To = teams[opp].map(i => m.cards[i]);
+      tv -= WS * (stackPenalty(Tm, attackWeights(To)) - stackPenalty(To, attackWeights(Tm)));
+    }
     if (ORC > 0) { const p = winProb(teams[me].map(i => m.cards[i]), teams[opp].map(i => m.cards[i])); if (p > 0 && p < 1 && p !== 0.5) tv += ORC * Math.log(p / (1 - p)); }
     return tv;
   };
@@ -117,21 +128,36 @@ export function chooseDraft(v: DraftView): string {
     let val = rollout(teams, pool, v.pickIndex + 1);
     if (M > 0 && v.pickIndex + 1 < v.order.length && v.order[v.pickIndex + 1] === opp) {
       // Adversarial opponent reply: try its top-M legal picks for each of its consecutive picks.
-      const nOpp = v.pickIndex + 2 < v.order.length && v.order[v.pickIndex + 2] === opp ? 2 : 1;
-      let worst = Infinity;
-      const lg1 = legalFor(teams[opp], pool, m).sort((a, b) => pw[b] - pw[a]).slice(0, M);
-      for (const x of lg1) {
-        const t1 = { [me]: teams[me], [opp]: [...teams[opp], x] } as Record<Side, number[]>;
-        const p1 = pool.filter(y => y !== x);
-        if (nOpp === 2) {
-          const lg2 = legalFor(t1[opp], p1, m).sort((a, b) => pw[b] - pw[a]).slice(0, M);
-          for (const y of lg2) {
-            const t2 = { [me]: t1[me], [opp]: [...t1[opp], y] } as Record<Side, number[]>;
-            worst = Math.min(worst, rollout(t2, p1.filter(z => z !== y), v.pickIndex + 3));
+      const consec: Side[] = [];
+      for (let p = v.pickIndex + 1; p < v.order.length && v.order[p] === opp; p++) consec.push(opp);
+      if (consec.length === 1) {
+        const replies = legalFor(teams[opp], pool, m).sort((a, b) => pw[b] - pw[a]).slice(0, M);
+        if (replies.length) {
+          let worst = Infinity;
+          for (const rep of replies) {
+            const t2 = { [me]: [...teams[me]], [opp]: [...teams[opp], rep] } as Record<Side, number[]>;
+            const p2 = pool.filter(x => x !== rep);
+            const w = rollout(t2, p2, v.pickIndex + 2);
+            if (w < worst) worst = w;
           }
-        } else worst = Math.min(worst, rollout(t1, p1, v.pickIndex + 2));
+          val = (1 - lam) * val + lam * worst;
+        }
+      } else if (consec.length === 2) {
+        const r1s = legalFor(teams[opp], pool, m).sort((a, b) => pw[b] - pw[a]).slice(0, M);
+        let worst = Infinity;
+        for (const r1 of r1s) {
+          const t1 = { [me]: [...teams[me]], [opp]: [...teams[opp], r1] } as Record<Side, number[]>;
+          const p1 = pool.filter(x => x !== r1);
+          const r2s = legalFor(t1[opp], p1, m).sort((a, b) => pw[b] - pw[a]).slice(0, Math.min(2, M));
+          for (const r2 of r2s) {
+            const t2 = { [me]: [...t1[me]], [opp]: [...t1[opp], r2] } as Record<Side, number[]>;
+            const p2 = p1.filter(x => x !== r2);
+            const w = rollout(t2, p2, v.pickIndex + 3);
+            if (w < worst) worst = w;
+          }
+        }
+        if (worst < Infinity) val = (1 - lam) * val + lam * worst;
       }
-      if (worst < Infinity) val = (1 - lam) * val + lam * worst;
     }
     if (val > bv) { bv = val; best = c; }
   }

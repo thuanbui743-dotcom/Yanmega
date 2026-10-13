@@ -15,7 +15,7 @@ export const P = {
   OPP_TEMP: 12,       // softmax temperature for opponent prediction
   SCREEN: 10,
   ROLL: 0.8,
-  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, FIELD: 1, FPRIOR: 0.5, FCAP: 0.85, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
+  FSIM: 1, DEEP: 1, FILL: 1, ROLL2: 0.5, PRUNE: 20, ROLL3: 0, PARADOX: 1, WORTH: 0, RUIN: 1, FG: 1, SMART: 1, MIX: 0.5, MIX_TOP: 8, ADAPT: 1.2, DBLPROT: 0, BAYES: 1, SHARP: 0.25, FIELD: 1, FPRIOR: 0.5, FCAP: 0.85, SWC: 0, SW_UNC: 0, SW_CHAIN: 0, SW_T1D: 0, WFILT: 0.01, BAYES_EPS: 0.05, RISK: 0, RISK_MARGIN: 1, RISK_AHEAD: 0.4, RISK_BEHIND: 0.5, ACC_AHEAD: 0,
   TIE: 0.02,
   EOT: 1, NOSWITCH: 0, NOPROTECT: 0,
   OPP_MINKO: 1, OPP_KO: 50, OPP_FO: 35, OPP_STATUS: 1,
@@ -959,6 +959,7 @@ function fieldModel(s: Sim): { acts: Act[]; h: number }[] {
   return best ? [best] : [{ acts: [{ kind: 'pass' }, { kind: 'pass' }], h: 0 }];
 }
 
+const LASTPOST = { max: 1 };
 interface Adapt3 { pend?: Map<string, number>[][]; lg: number[] }
 const adapt3Mem = new WeakMap<object, Adapt3>();
 /** Posterior weights over [heuristic, smart, field] models. */
@@ -1058,7 +1059,7 @@ function decide(v: BattleView): string {
     if (P.FIELD) {
       fj = fieldModel(sim);
       const post = adaptMix3(v, [{ js: hj, ws: hw }, { js: sj, ws: sw }, { js: fj, ws: [1] }]);
-      ph = post[0]; M = post[1]; pf = post[2];
+      ph = post[0]; M = post[1]; pf = post[2]; LASTPOST.max = Math.max(...post);
     } else { M = adaptMix(v, hj, sj, hw, sw); ph = 1 - M; }
     const map = new Map<string, { acts: Act[]; h: number; w: number }>();
     const add = (o: { acts: Act[]; h: number }, wt: number) => {
@@ -1098,6 +1099,18 @@ function decide(v: BattleView): string {
       if (r) tie += Math.min(r.avgPct, t.hp) * (r.avgPct >= t.hp ? 2 : 1);
     });
     if (P.DBLPROT && myActs.every(a => a?.move && PROTECTS.has(a.move))) tie -= P.DBLPROT / Math.max(1e-9, P.TIE);
+    {
+      let pen = 0, nsw = 0;
+      myActs.forEach((a, i) => {
+        if (a?.kind !== 'switch') return;
+        nsw++;
+        pen += P.SWC + P.SW_UNC * (1 - LASTPOST.max);
+        const cur = v.state.my.find(m => m.active && m.slot === i);
+        if (cur && v.state.field.turn > 1 && cur.turnsOnField <= 1) pen += P.SW_CHAIN;
+      });
+      if (nsw === 2 && v.state.field.turn <= 1) pen += P.SW_T1D;
+      if (pen) tie -= pen / Math.max(1e-9, P.TIE);
+    }
     cands.push({ j, myActs, tie });
   }
   let mode = 0, lam = P.LAMBDA;

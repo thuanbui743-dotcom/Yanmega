@@ -2,7 +2,7 @@
 // Usage: npx tsx scripts/train-oracle.ts [--bots randdraft,randdraft2] [--l2 0.01]
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadLibrary } from '../src/cards';
+import { loadLibrary, loadPlatformLibrary, buildBssLibrary } from '../src/cards';
 import { matchupVector, FEATURE_NAMES } from '../src/lib/features';
 import type { Card } from '../src/types';
 import type { OracleModel } from '../src/lib/oracle';
@@ -12,7 +12,11 @@ const arg = (k: string, d: string) => { const i = args.indexOf('--' + k); return
 const allowed = new Set(arg('bots', 'randdraft,randdraft2').split(','));
 const l2 = Number(arg('l2', '0.01'));
 
-const lib = new Map(loadLibrary().map(c => [c.id, c]));
+const lib = new Map<string, Card>();
+for (const c of loadLibrary()) lib.set(c.id, c);
+for (const c of loadPlatformLibrary()) lib.set(c.id, c);
+try { for (const c of buildBssLibrary()) lib.set(c.id, c); } catch {}
+
 const runsDir = path.join(__dirname, '..', 'data', 'runs');
 const rows: { A: Card[]; B: Card[]; y: number }[] = [];
 for (const run of fs.readdirSync(runsDir)) {
@@ -22,6 +26,7 @@ for (const run of fs.readdirSync(runsDir)) {
     if (!line) continue;
     const r = JSON.parse(line);
     if (r.error || r.winner === 'tie' || !allowed.has(r.sides.A) || !allowed.has(r.sides.B)) continue;
+    if (r.picks.A.some((id: string) => !lib.has(id)) || r.picks.B.some((id: string) => !lib.has(id))) continue;
     rows.push({ A: r.picks.A.map((id: string) => lib.get(id)!), B: r.picks.B.map((id: string) => lib.get(id)!), y: r.winner === r.sides.A ? 1 : 0 });
   }
 }
