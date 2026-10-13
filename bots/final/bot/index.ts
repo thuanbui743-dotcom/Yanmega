@@ -20,8 +20,11 @@ function race<T>(work: () => T | Promise<T>, ms: number, fallback: () => T): Pro
   return new Promise<T>(resolve => {
     let done = false;
     const finish = (v: T) => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
-    const timer = setTimeout(() => finish(fallback()), ms);
-    Promise.resolve().then(work).then(finish, () => finish(fallback()));
+    // A throwing fallback must never escape (it would crash the process): resolve undefined instead,
+    // and the platform falls back to its own default.
+    const safe = () => { try { return fallback(); } catch { return undefined as unknown as T; } };
+    const timer = setTimeout(() => finish(safe()), ms);
+    Promise.resolve().then(work).then(finish, () => finish(safe()));
   });
 }
 

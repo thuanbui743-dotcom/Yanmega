@@ -21,9 +21,16 @@ export function slotOptions(req: any): SlotOption[][] {
     .filter(({ p }) => !p.active && !p.condition.endsWith(' fnt') && p.condition !== '0 fnt');
 
   if (req.forceSwitch) {
-    return (req.forceSwitch as boolean[]).map(need =>
-      need ? benchSwitches.map(({ i }) => ({ kind: 'switch' as const, choice: `switch ${i}`, switchTo: i }))
-           : [{ kind: 'pass' as const, choice: 'pass' }]);
+    // Revival Blessing: the slot's Pokémon is flagged `reviving` and must pick a fainted party member.
+    const fainted = side
+      .map((p, i) => ({ p, i: i + 1 }))
+      .filter(({ p }) => !p.active && (p.condition.endsWith(' fnt') || p.condition === '0 fnt'));
+    return (req.forceSwitch as boolean[]).map((need, slot) => {
+      if (!need) return [{ kind: 'pass' as const, choice: 'pass' }];
+      const pool = side[slot]?.reviving ? fainted : benchSwitches;
+      const opts = pool.map(({ i }) => ({ kind: 'switch' as const, choice: `switch ${i}`, switchTo: i }));
+      return opts.length ? opts : [{ kind: 'pass' as const, choice: 'pass' }];
+    });
   }
   if (!req.active) return [];
 
@@ -57,6 +64,7 @@ export function slotOptions(req: any): SlotOption[][] {
 /** All valid joint choices (no double switch into the same mon). */
 export function jointChoices(opts: SlotOption[][]): { choice: string; parts: SlotOption[] }[] {
   if (opts.length === 0) return [{ choice: 'default', parts: [] }];
+  if (opts.some(o => o.length === 0)) opts = opts.map(o => (o.length ? o : [{ kind: 'pass' as const, choice: 'pass' }]));
   if (opts.length === 1) return opts[0].map(o => ({ choice: o.choice, parts: [o] }));
   const out: { choice: string; parts: SlotOption[] }[] = [];
   for (const a of opts[0]) for (const b of opts[1]) {
