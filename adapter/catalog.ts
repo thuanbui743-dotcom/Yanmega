@@ -11,7 +11,7 @@ for (const dir of process.argv.slice(2)) {
   for (const f of walk(dir).filter(f => f.endsWith('.json'))) {
     try {
       const st = JSON.parse(fs.readFileSync(f, 'utf8')).state;
-      for (const c of st?.observation?.available_cards ?? []) if (c?.card_id) catalog[c.card_id] = c;
+      for (const c of st?.observation?.available_cards ?? []) if (String(c?.card_id).startsWith('vgc-')) catalog[c.card_id] = c;  // platform cards only (offline tests use arena ids)
     } catch { /* skip unreadable files */ }
   }
 }
