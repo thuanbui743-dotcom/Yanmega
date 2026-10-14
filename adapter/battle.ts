@@ -99,10 +99,42 @@ function ensureTeams(obs: any, mem: MatchMemory) {
   if (mem.oppTeam.length < 4) mem.oppTeam = build(obs.opponent_team);
 }
 
+/**
+ * The platform sometimes sends the "No pending decision" placeholder observation together with a valid
+ * doubles_turn template (the state changed while it was read). Rebuild the board from the last full
+ * observation of this match plus the template, which carries the current actives, their HP and every option.
+ */
+function boardFromTemplate(template: any, last: any): any {
+  const slots: any[] = [...(template.slots ?? [])].sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+  const team: Record<string, any> = JSON.parse(JSON.stringify(last.team ?? {}));
+  for (const s of slots) {
+    const a = s.active;
+    if (!a) continue;
+    const e = Object.values(team).find((x: any) => toID(x.species) === toID(a.species));
+    if (e) Object.assign(e, { current_hp: a.current_hp, max_hp: a.max_hp, status: a.status, boosts: a.boosts, fainted: a.fainted, active: true });
+  }
+  return {
+    ...last,
+    team,
+    active_pokemon: slots.map(s => s.active ?? null),
+    force_switch: slots.map(s => !!s.force_switch),
+    available_moves: slots.map(s => (s.options ?? []).filter((o: any) => o.type === 'move').map((o: any) => {
+      const d = Dex.moves.get(o.move_id);
+      // Same UPPER_SNAKE form the platform uses (e.g. ALL_ADJACENT_FOES), which buildRequest converts back.
+      const target = (d.exists ? d.target : 'normal').replace(/([A-Z])/g, '_$1').toUpperCase();
+      return { id: o.move_id, target, current_pp: o.current_pp, max_pp: o.current_pp, targets: o.targets };
+    })),
+    available_switches: slots.map(s => (s.options ?? []).filter((o: any) => o.type === 'switch').map((o: any) => ({ species: o.species }))),
+  };
+}
+
 export async function battleDecision(bot: Bot, st: any, mem: MatchMemory): Promise<any> {
-  const obs = st.observation ?? {};
   const template = st.legal_actions?.actions?.[0]?.input?.action;
   if (!template || template.type !== 'doubles_turn') throw new Error('no doubles_turn template');
+  let obs = st.observation ?? {};
+  if (obs.team) mem.lastBattleObs = obs;
+  else if (mem.lastBattleObs) obs = boardFromTemplate(template, mem.lastBattleObs);
+  else throw new Error('placeholder observation and no earlier board in this match');
   const firstKey = Object.keys(obs.team ?? {})[0] ?? 'p1: ?';
   const side = (firstKey.slice(0, 2) === 'p2' ? 'p2' : 'p1') as 'p1' | 'p2';
   ensureTeams(obs, mem);

@@ -56,7 +56,7 @@ Equivalent manual command, from the starter folder: `set PYTHONPATH=<vgc>\runtim
 
 ## The tournament bot
 **`bots/final/bot`** is what we submit.
-- **Engines:** frozen copies of the current best drafter (`bots/final/drafter`) and battler (`bots/final/battler`).
+- **Engines:** frozen copies of drafter v10 (`bots/final/drafter`: counter-pick denial and weakness awareness) and battler v7 with the mixed strategy on (`bots/final/battler`).
 - **Settings:** it clears every tuning environment variable before loading, so the host machine can't change how it plays.
 - **Time guards:** hard limits of 8 s per draft pick, 30 s for Team Preview and 15 s per battle decision, against the platform's 15 s, 85 s and 50 s. On a timeout or error it falls back to a legal greedy choice.
 - **Refresh:** after a proven improvement in `bots/claude/drafter` or `bots/claude/battler`, run `bash scripts/freeze.sh`.
@@ -69,16 +69,20 @@ Interface (`src/types.ts`): `draftPick(view) -> cardId`, `teamPreview(view) -> {
 - **Battler** (`bots/claude/battler`), each turn:
   - plays our joint actions against the opponent's likely replies in a one-turn simulator (priority, Trick Room, Tailwind, Scarf, Protect, items, abilities), then looks 2 turns ahead with bench replacements;
   - scores three damage-roll cases;
-  - predicts the opponent with three models (smart, greedy-style and rule-follower), weighted by Bayesian trust that updates on every observed move.
+  - predicts the opponent with three models (smart, greedy-style and rule-follower), weighted by Bayesian trust that updates on every observed move;
+  - when its top joint actions are nearly tied, solves the small payoff table with regret matching and samples from the mixed strategy (seeded per match), so an opponent that models us cannot read us every turn. Clearly better actions are always played.
 
-  It averages about 40 ms per decision.
+  It averages about 30 to 40 ms per decision.
 - **Win-rate predictor** (`src/lib/oracle.ts`, `data/oracle.json`): a logistic model over about 25 team features. It predicts 69.8% of held-out battler games and is well calibrated.
 
 ## Results (600+ matches unless noted, zero invalid choices and zero timeouts throughout)
 
 | Matchup | Result |
 |---|---|
-| **final/bot** (drafter v10 + battler v7) vs gemini/best / field bot / llmlike / greedy | **59% / 85% / 93% / 100%** |
+| **final/bot (submitted: drafter v10 + battler v7, mixed strategy on) vs gemini/best / field bot / llmlike, real platform cards (`VGC_CARDS=platform`, 200 matches each)** | **66% / 88% / 93%** |
+| Drafter v10 vs previous drafter v4, real platform cards (2 runs, 320 matches) | ~49% head-to-head; vs gemini/best ~68% vs ~63%; vs llmlike ~94.5% vs ~93% |
+| Mixed strategy on vs off (real cards, same seeds) | field 90% vs 89%, llmlike 94% vs 94%, 50.8% head-to-head; worst-case exploiter (runs our own code) 74.7% vs 81.7% |
+| final/bot (drafter v10 + battler v7) vs gemini/best / field bot / llmlike / greedy | 59% / 85% / 93% / 100% |
 | final/bot vs gemini/best (`VGC_CARDS=bss`, 100 matches) | 59% (64% drafting first) |
 | claude/best_v10 vs gemini/best (`VGC_CARDS=bss`, 200 matches) | 59% (66% drafting first) |
 | final/bot vs claude/best (baseline) | 52.5% vs 47.5% |
@@ -92,7 +96,7 @@ Interface (`src/types.ts`): `draftPick(view) -> cardId`, `teamPreview(view) -> {
 
 **Tested and rejected** (no measurable gain): rule-of-two preview penalty, risk mode by game state, accuracy preference when ahead, double-Protect penalty, switch-risk costs (measured: switch reads are right about 72% of the time and save about 20% HP), endgame draft minimax.
 
-**Live platform:** Testing matches played end to end through the adapter with zero errors and zero fallbacks. Draft picks take under 2 s, Team Preview about 1 s, and battle turns under 120 ms.
+**Live platform:** Testing matches played end to end through the adapter with zero errors and zero fallbacks. Draft picks take under 2 s, Team Preview about 1 s, and battle turns under 120 ms. All 1,530 recorded platform states replay through the bridge with valid actions, including the rare placeholder observation ("No pending decision") that the bridge rebuilds from the last board plus the action template.
 
 ## Layout
 ```

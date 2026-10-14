@@ -77,6 +77,7 @@ export class MatchMemory {
   myAgentId = '';
   myTeam: Card[] = [];
   oppTeam: Card[] = [];
+  lastBattleObs: any = null;   // last full battle observation (used when the platform sends a placeholder)
 
   remember(list: any[] | undefined) {
     for (const c of list ?? []) if (c?.card_id && !this.cards.has(c.card_id)) this.cards.set(c.card_id, toCard(c));
